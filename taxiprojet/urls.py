@@ -18,10 +18,13 @@ urlpatterns = [
     path('api/creer-chauffeur/', views.creer_chauffeur_manuel, name='creer_chauffeur_manuel'),
     path('api/deconnexion-chauffeur/<int:pk>/', views.deconnexion_chauffeur, name='deconnexion_chauffeur'),
 
-    # 4. SYSTÈME DE PAIEMENT & ABONNEMENT (IPN & Redirection)
+    # 4. SYSTÈME DE PAIEMENT & ABONNEMENT
     path('api/creer-lien-orange-money/', views.creer_lien_orange_money, name='creer_paiement'),
     path('api/verifier-statut/<int:id>/', views.verifier_statut, name='verifier_statut'),
+    
+    # Correction ici : Utilisation de views.paytech_webhook pour éviter l'erreur NameError
     path('api/paytech-webhook/', views.paytech_webhook, name='paytech_webhook'),
+    
     path('api/valider-chauffeur/<int:chauffeur_id>/', views.valider_paiement_manuel, name='valider_manuel'),
 
     # 5. ADMINISTRATION API (REST Framework ViewSet)
@@ -38,5 +41,6 @@ urlpatterns = [
 ] 
 
 # --- GESTION DES FICHIERS MÉDIAS ---
-if settings.DEBUG:
+# Important : Sur Render, on active souvent ceci même hors DEBUG pour tester rapidement
+if settings.DEBUG or True: 
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
