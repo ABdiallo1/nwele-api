@@ -16,8 +16,8 @@ class Chauffeur(models.Model):
     photo_voiture = models.ImageField(upload_to='voitures/', null=True, blank=True)
     
     # --- Statuts ---
-    est_actif = models.BooleanField(default=False)
-    est_en_ligne = models.BooleanField(default=False)
+    est_actif = models.BooleanField(default=False, verbose_name="Abonnement Actif")
+    est_en_ligne = models.BooleanField(default=False, verbose_name="En ligne")
     
     # --- Abonnement ---
     date_expiration = models.DateTimeField(null=True, blank=True)
@@ -28,6 +28,7 @@ class Chauffeur(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def enregistrer_paiement(self):
+        """Active l'abonnement pour 30 jours supplémentaires"""
         self.est_actif = True
         maintenant = timezone.now()
         if self.date_expiration and self.date_expiration > maintenant:
@@ -37,18 +38,19 @@ class Chauffeur(models.Model):
         self.save()
 
     def jours_restants(self):
+        """Retourne le nombre de jours avant expiration"""
         if self.date_expiration and self.date_expiration > timezone.now():
             return (self.date_expiration - timezone.now()).days
         return 0
 
     def __str__(self):
-        return self.nom
+        return f"{self.nom} - {self.telephone}"
 
-# --- CRÉATION AUTOMATIQUE DE L'ADMIN (CORRIGÉ) ---
+# --- CRÉATION AUTOMATIQUE DE L'ADMIN ---
 
 @receiver(post_migrate)
 def gestion_admin_automatique(sender, **kwargs):
-    # On s'assure que le signal ne s'exécute que pour l'app 'chauffeurs'
+    # On cible l'app 'chauffeurs' pour déclencher l'action
     if sender.name == 'chauffeurs':
         username = 'admin'
         password = 'Parser1234'
@@ -64,5 +66,4 @@ def gestion_admin_automatique(sender, **kwargs):
                 user.save()
                 print(f"🔄 Mot de passe de {username} mis à jour")
         except Exception as e:
-            # Important pour ne pas bloquer le déploiement sur Render
             print(f"⚠️ Erreur lors de la gestion admin : {e}")
