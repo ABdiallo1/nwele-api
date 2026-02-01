@@ -40,8 +40,28 @@ def liste_taxis(request):
     } for t in taxis]
     return Response(data)
 
-# --- 3. CRÉATION DU LIEN DE PAIEMENT ---
+# --- 3. PROFIL CHAUFFEUR (La fonction qui manquait !) ---
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def profil_chauffeur(request, pk):
+    try:
+        chauffeur = Chauffeur.objects.get(pk=pk)
+        chauffeur.verifier_statut_abonnement()
+        return Response({
+            "id": chauffeur.id,
+            "nom": chauffeur.nom,
+            "telephone": chauffeur.telephone,
+            "est_actif": chauffeur.est_actif,
+            "est_en_ligne": chauffeur.est_en_ligne,
+            "date_expiration": chauffeur.date_expiration.isoformat() if chauffeur.date_expiration else "",
+            "jours_restants": chauffeur.jours_restants(),
+        })
+    except Chauffeur.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+# --- 4. CRÉATION DU LIEN DE PAIEMENT ---
 @api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
 def creer_chauffeur_manuel(request):
     if request.method == 'GET':
         telephone = request.query_params.get('telephone')
@@ -77,7 +97,7 @@ def creer_chauffeur_manuel(request):
     except Chauffeur.DoesNotExist:
         return Response({'error': 'Chauffeur introuvable'}, status=404)
 
-# --- 4. WEBHOOK IPN ---
+# --- 5. WEBHOOK IPN ---
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -94,7 +114,7 @@ def paytech_webhook(request):
             return Response({"error": str(e)}, status=400)
     return Response({"error": "No data"}, status=400)
 
-# --- 5. VERIFICATION STATUT ---
+# --- 6. VERIFICATION STATUT ---
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def verifier_statut(request, id):
@@ -105,7 +125,7 @@ def verifier_statut(request, id):
     except Chauffeur.DoesNotExist:
         return HttpResponse("Introuvable", status=404)
 
-# --- 6. CONNEXION ---
+# --- 7. CONNEXION ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
@@ -122,7 +142,7 @@ def connexion_chauffeur(request):
     except Chauffeur.DoesNotExist:
         return Response({"error": "Inconnu"}, status=404)
 
-# --- 7. INSCRIPTION ---
+# --- 8. INSCRIPTION ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @parser_classes([MultiPartParser, FormParser])
