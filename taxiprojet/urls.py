@@ -37,4 +37,6 @@ urlpatterns = [
     
     # 5. Route de secours (Validation manuelle par l'admin)
     path('valider-manuel/<int:chauffeur_id>/', valider_paiement_manuel, name='valider_paiement_manuel'),
+    path('admin/', admin.site.urls), # C'est cette ligne qui ouvre l'accès
+    path('api/', include('api.urls')),
 ]

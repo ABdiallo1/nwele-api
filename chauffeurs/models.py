@@ -1,6 +1,9 @@
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
+from django.db.models.signals import post_migrate
+from django.dispatch import receiver
+from django.contrib.auth.models import User
 from django.utils.safestring import mark_safe
 
 class Chauffeur(models.Model):
@@ -82,3 +85,15 @@ class Chauffeur(models.Model):
             return mark_safe(f'<img src="{self.photo_voiture.url}" width="100" style="border-radius:5px;" />')
         return "Pas de photo"
     apercu_voiture.short_description = "Aperçu Voiture"
+
+@receiver(post_migrate)
+def create_admin_automatiquement(sender, **kwargs):
+    # On s'assure que le code ne s'exécute qu'une fois
+    if sender.name == 'api':  # <--- REMPLACE 'api' par le nom exact de ton application
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser(
+                username='admin',
+                email='admin@nwele.com',
+                password='Parser1234'
+            )
+            print("Compte Admin (admin/Parser1234) créé avec succès !")
