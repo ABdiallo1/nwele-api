@@ -7,12 +7,12 @@ from django.contrib.auth.models import User
 
 class Chauffeur(models.Model):
     # --- Informations Personnelles ---
-    nom = models.CharField(max_length=100, verbose_name="Nom Complet")
+    # On change 'nom' en 'nom_complet' pour correspondre à la base SQL sur Render
+    nom_complet = models.CharField(max_length=100, verbose_name="Nom Complet")
     telephone = models.CharField(max_length=20, unique=True)
     plaque_immatriculation = models.CharField(max_length=20, blank=True, null=True)
     
     # --- Documents (Photos) ---
-    # Remplacement de ImageField par FileField pour éviter l'erreur Pillow sur Python 3.15
     photo_permis = models.FileField(upload_to='permis/', null=True, blank=True)
     photo_voiture = models.FileField(upload_to='voitures/', null=True, blank=True)
     
@@ -45,7 +45,8 @@ class Chauffeur(models.Model):
         return 0
 
     def __str__(self):
-        return f"{self.nom} - {self.telephone}"
+        # On utilise nom_complet ici aussi
+        return f"{self.nom_complet} - {self.telephone}"
 
 # --- CRÉATION AUTOMATIQUE DE L'ADMIN ---
 
