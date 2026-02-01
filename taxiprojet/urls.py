@@ -1,6 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
+
+# REMPLACE 'TON_NOM_APP' par le nom de ton dossier (ex: 'api' ou 'chauffeur')
+from api.views import (
     ChauffeurViewSet, liste_taxis, connexion_chauffeur, 
     profil_chauffeur, mettre_a_jour_chauffeur, 
     creer_lien_paytech, paytech_webhook, 
