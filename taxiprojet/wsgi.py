@@ -1,15 +1,16 @@
 import os
 from django.core.wsgi import get_wsgi_application
+from django.core.management import call_command
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'taxiprojet.settings')
 
 application = get_wsgi_application()
 
-# --- FORCE LA MIGRATION AU DÉMARRAGE ---
-from django.core.management import call_command
+# --- CODE D'AUTO-MIGRATION ---
+# Ce code s'exécute au démarrage du serveur sur Render
 try:
-    print("Exécution des migrations...")
+    print("Vérification de la base de données...")
     call_command('migrate', interactive=False)
-    print("Migrations terminées avec succès.")
+    print("Base de données à jour.")
 except Exception as e:
-    print(f"Erreur lors de la migration : {e}")
+    print(f"Erreur auto-migrate : {e}")

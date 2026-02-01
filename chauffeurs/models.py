@@ -6,14 +6,23 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User
 
 class Chauffeur(models.Model):
+    # --- Informations Personnelles ---
     nom = models.CharField(max_length=100)
     telephone = models.CharField(max_length=20, unique=True)
     plaque_immatriculation = models.CharField(max_length=20, blank=True)
+    
+    # --- Documents (Photos) ---
     photo_permis = models.ImageField(upload_to='permis/', null=True, blank=True)
     photo_voiture = models.ImageField(upload_to='voitures/', null=True, blank=True)
+    
+    # --- Statuts ---
     est_actif = models.BooleanField(default=False)
     est_en_ligne = models.BooleanField(default=False)
+    
+    # --- Abonnement ---
     date_expiration = models.DateTimeField(null=True, blank=True)
+    
+    # --- Localisation ---
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -35,12 +44,12 @@ class Chauffeur(models.Model):
     def __str__(self):
         return self.nom
 
-# Création automatique de l'admin au démarrage
+# --- CRÉATION AUTOMATIQUE DE L'ADMIN (CORRIGÉ) ---
 
-
+@receiver(post_migrate)
 def gestion_admin_automatique(sender, **kwargs):
+    # On s'assure que le signal ne s'exécute que pour l'app 'chauffeurs'
     if sender.name == 'chauffeurs':
-        from django.contrib.auth.models import User
         username = 'admin'
         password = 'Parser1234'
         email = 'admin@nwele.com'
@@ -55,4 +64,5 @@ def gestion_admin_automatique(sender, **kwargs):
                 user.save()
                 print(f"🔄 Mot de passe de {username} mis à jour")
         except Exception as e:
+            # Important pour ne pas bloquer le déploiement sur Render
             print(f"⚠️ Erreur lors de la gestion admin : {e}")
