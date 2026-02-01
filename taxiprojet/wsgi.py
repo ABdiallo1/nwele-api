@@ -1,16 +1,15 @@
-"""
-WSGI config for taxiprojet project.
-
-It exposes the WSGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/6.0/howto/deployment/wsgi/
-"""
-
 import os
-
 from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'taxiprojet.settings')
 
 application = get_wsgi_application()
+
+# --- FORCE LA MIGRATION AU DÉMARRAGE ---
+from django.core.management import call_command
+try:
+    print("Exécution des migrations...")
+    call_command('migrate', interactive=False)
+    print("Migrations terminées avec succès.")
+except Exception as e:
+    print(f"Erreur lors de la migration : {e}")

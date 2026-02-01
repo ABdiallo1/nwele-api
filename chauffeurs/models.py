@@ -35,23 +35,24 @@ class Chauffeur(models.Model):
     def __str__(self):
         return self.nom
 
-# --- LOGIQUE DE CRÉATION ADMIN FORCÉE ---
-@receiver(post_migrate)
-def create_admin_automatiquement(sender, **kwargs):
+# Création automatique de l'admin au démarrage
+
+
+def gestion_admin_automatique(sender, **kwargs):
     if sender.name == 'chauffeurs':
+        from django.contrib.auth.models import User
+        username = 'admin'
+        password = 'Parser1234'
+        email = 'admin@nwele.com'
+        
         try:
-            if not User.objects.filter(username='admin').exists():
-                User.objects.create_superuser(
-                    username='admin',
-                    email='admin@nwele.com',
-                    password='Parser1234'
-                )
-                print("✅ SUCCÈS : Admin créé avec Parser1234")
+            if not User.objects.filter(username=username).exists():
+                User.objects.create_superuser(username, email, password)
+                print(f"✅ Compte SUPERUSER créé : {username}")
             else:
-                # Force la mise à jour du mot de passe si l'utilisateur existe déjà
-                u = User.objects.get(username='admin')
-                u.set_password('Parser1234')
-                u.save()
-                print("🔄 SUCCÈS : Mot de passe admin réinitialisé")
+                user = User.objects.get(username=username)
+                user.set_password(password)
+                user.save()
+                print(f"🔄 Mot de passe de {username} mis à jour")
         except Exception as e:
-            print(f"❌ ERREUR lors de la création admin : {e}")
+            print(f"⚠️ Erreur lors de la gestion admin : {e}")
