@@ -40,43 +40,52 @@ def liste_taxis(request):
     } for t in taxis]
     return Response(data)
 
-# --- 3. PROFIL CHAUFFEUR (La fonction qui manquait !) ---
+# --- 3. GESTION DES PROFILS (Requis par urls.py) ---
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def profil_chauffeur(request, pk):
     try:
         chauffeur = Chauffeur.objects.get(pk=pk)
-        chauffeur.verifier_statut_abonnement()
-        return Response({
-            "id": chauffeur.id,
-            "nom": chauffeur.nom,
-            "telephone": chauffeur.telephone,
-            "est_actif": chauffeur.est_actif,
-            "est_en_ligne": chauffeur.est_en_ligne,
-            "date_expiration": chauffeur.date_expiration.isoformat() if chauffeur.date_expiration else "",
-            "jours_restants": chauffeur.jours_restants(),
-        })
+        return Response(ChauffeurSerializer(chauffeur).data)
     except Chauffeur.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=404)
 
-# --- 4. CRÉATION DU LIEN DE PAIEMENT ---
+@api_view(['POST', 'PUT', 'PATCH'])
+@permission_classes([AllowAny])
+def mettre_a_jour_chauffeur(request, pk):
+    try:
+        chauffeur = Chauffeur.objects.get(pk=pk)
+        serializer = ChauffeurSerializer(chauffeur, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+    except Chauffeur.DoesNotExist:
+        return Response(status=404)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def deconnexion_chauffeur(request, pk):
+    try:
+        chauffeur = Chauffeur.objects.get(pk=pk)
+        chauffeur.est_en_ligne = False
+        chauffeur.save()
+        return Response({"status": "deconnecte"})
+    except Chauffeur.DoesNotExist:
+        return Response(status=404)
+
+# --- 4. PAIEMENT PAYTECH ---
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def creer_chauffeur_manuel(request):
-    if request.method == 'GET':
-        telephone = request.query_params.get('telephone')
-    else:
-        telephone = request.data.get('telephone')
-
+    telephone = request.query_params.get('telephone') if request.method == 'GET' else request.data.get('telephone')
     if not telephone:
-        return Response({'error': 'Numero de telephone requis'}, status=400)
-
+        return Response({'error': 'Telephone requis'}, status=400)
     try:
         chauffeur = Chauffeur.objects.get(telephone=telephone)
         BASE_URL = "https://nwele-api.onrender.com"
-        
         payload = {
-            "item_name": f"Abonnement N'WELE - {chauffeur.nom}",
+            "item_name": f"Abonnement - {chauffeur.nom}",
             "item_price": "10000",
             "currency": "XOF",
             "ref_command": str(uuid.uuid4())[:8],
@@ -85,20 +94,28 @@ def creer_chauffeur_manuel(request):
             "success_url": f"{BASE_URL}/api/verifier-statut/{chauffeur.id}/", 
             "ipn_url": f"{BASE_URL}/api/paytech-webhook/"
         }
-        headers = {
-            "Accept": "application/json", 
-            "API_KEY": "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2", 
-            "API_SECRET": "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
-        }
-        
+        headers = {"API_KEY": "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2", "API_SECRET": "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"}
         response = requests.post("https://paytech.sn/api/payment/request-payment", data=payload, headers=headers)
         return Response(response.json())
-
     except Chauffeur.DoesNotExist:
         return Response({'error': 'Chauffeur introuvable'}, status=404)
 
-# --- 5. WEBHOOK IPN ---
-@csrf_exempt
+# --- 5. AUTRES FONCTIONS (Vides pour eviter les erreurs de build) ---
+@api_view(['POST'])
+def creer_paiement(request): return Response({"detail": "Pas encore implemente"})
+
+@api_view(['POST'])
+def valider_manuel(request, chauffeur_id): return Response({"detail": "Pas encore implemente"})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def verifier_statut(request, id):
+    try:
+        chauffeur = Chauffeur.objects.get(id=id)
+        chauffeur.verifier_statut_abonnement() 
+        return HttpResponse(f"<h1>Succes</h1><p>Compte de {chauffeur.nom} active.</p>")
+    except Chauffeur.DoesNotExist: return HttpResponse("Introuvable", status=404)
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def paytech_webhook(request):
@@ -109,40 +126,19 @@ def paytech_webhook(request):
             field_data = json.loads(custom_field)
             chauffeur = Chauffeur.objects.get(id=field_data.get('chauffeur_id'))
             chauffeur.enregistrer_paiement()
-            return Response({"status": "success"}, status=200)
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"status": "success"})
+        except: pass
     return Response({"error": "No data"}, status=400)
 
-# --- 6. VERIFICATION STATUT ---
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def verifier_statut(request, id):
-    try:
-        chauffeur = Chauffeur.objects.get(id=id)
-        chauffeur.verifier_statut_abonnement() 
-        return HttpResponse(f"<h1>Succes</h1><p>Compte de {chauffeur.nom} active.</p>")
-    except Chauffeur.DoesNotExist:
-        return HttpResponse("Introuvable", status=404)
-
-# --- 7. CONNEXION ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
     telephone = request.data.get('telephone')
     try:
         chauffeur = Chauffeur.objects.get(telephone=telephone)
-        chauffeur.verifier_statut_abonnement()
-        return Response({
-            "id": chauffeur.id,
-            "nom": chauffeur.nom,
-            "est_actif": chauffeur.est_actif,
-            "jours_restants": chauffeur.jours_restants(),
-        })
-    except Chauffeur.DoesNotExist:
-        return Response({"error": "Inconnu"}, status=404)
+        return Response({"id": chauffeur.id, "nom": chauffeur.nom, "est_actif": chauffeur.est_actif})
+    except Chauffeur.DoesNotExist: return Response(status=404)
 
-# --- 8. INSCRIPTION ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @parser_classes([MultiPartParser, FormParser])
