@@ -12,11 +12,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
+# On importe les modèles et sérialiseurs locaux
 from .models import Chauffeur
 from .serializers import ChauffeurSerializer
 
-# --- 1. ADMINISTRATION DRF ---
+# --- 1. ADMINISTRATION ---
 class ChauffeurViewSet(viewsets.ModelViewSet):
+    """Interface d'administration pour gérer les chauffeurs via DRF."""
     queryset = Chauffeur.objects.all()
     serializer_class = ChauffeurSerializer
 
@@ -24,9 +26,10 @@ class ChauffeurViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def liste_taxis(request):
-    """Liste les chauffeurs actifs et en ligne après avoir expiré les anciens."""
+    """Liste les chauffeurs actifs et en ligne (nettoyage automatique des expirés)."""
     maintenant = timezone.now()
-    # Désactivation automatique si l'abonnement est fini
+    
+    # Sécurité : On désactive ceux dont l'abonnement a expiré avant d'afficher la liste
     Chauffeur.objects.filter(date_expiration__lt=maintenant, est_actif=True).update(
         est_actif=False, 
         est_en_ligne=False
@@ -36,7 +39,7 @@ def liste_taxis(request):
     serializer = ChauffeurSerializer(taxis, many=True)
     return Response(serializer.data)
 
-# --- 3. ESPACE CHAUFFEUR ---
+# --- 3. ESPACE CHAUFFEUR (LOGIN & PROFIL) ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
@@ -79,7 +82,7 @@ def mettre_a_jour_chauffeur(request, pk):
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def creer_lien_paytech(request):
-    """Appelé par Flutter pour obtenir le redirect_url de PayTech."""
+    """Génère un lien de paiement PayTech pour le chauffeur."""
     telephone = request.query_params.get('telephone') if request.method == 'GET' else request.data.get('telephone')
     
     if not telephone:
@@ -93,7 +96,7 @@ def creer_lien_paytech(request):
             "item_price": "10000",
             "currency": "XOF",
             "ref_command": f"NWELE-{str(uuid.uuid4())[:8]}",
-            "env": "test",  # Passer à 'prod' pour l'argent réel
+            "env": "test",  # Changez en 'prod' pour la production
             "custom_field": json.dumps({"chauffeur_id": chauffeur.id}),
             "success_url": f"https://nwele-api.onrender.com/api/verifier-statut/{chauffeur.id}/",
             "ipn_url": "https://nwele-api.onrender.com/api/paytech-webhook/"
@@ -116,24 +119,20 @@ def creer_lien_paytech(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def paytech_webhook(request):
-    """Le Webhook IPN appelé par PayTech pour confirmer le paiement."""
+    """IPN : Reçoit la confirmation automatique de PayTech."""
     data = request.data
     custom_field_raw = data.get('custom_field')
     price = data.get('item_price')
     
-    # Sécurité : Vérifier le montant et la présence du chauffeur
     if custom_field_raw and str(price) == "10000":
         try:
-            # Gérer le fait que PayTech peut envoyer une String ou un Dict
-            if isinstance(custom_field_raw, str):
-                field = json.loads(custom_field_raw)
-            else:
-                field = custom_field_raw
-                
+            # Sécurité : On gère le JSON string ou dictionnaire
+            field = json.loads(custom_field_raw) if isinstance(custom_field_raw, str) else custom_field_raw
+            
             chauffeur_id = field.get('chauffeur_id')
             c = Chauffeur.objects.get(id=chauffeur_id)
             
-            # Méthode dans ton model qui ajoute 30 jours
+            # Activation du compte (Logique définie dans models.py)
             c.enregistrer_paiement() 
             return Response({"status": "SUCCESS"}, status=200)
         except Exception as e:
@@ -144,17 +143,20 @@ def paytech_webhook(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def verifier_statut(request, id):
-    """Page de retour simple après paiement."""
+    """Page HTML simple de confirmation après paiement."""
     try:
         c = Chauffeur.objects.get(id=id)
-        msg = "Félicitations ! Votre compte est maintenant ACTIF." if c.est_actif else "Paiement en cours de traitement..."
+        msg = "Félicitations ! Votre compte est maintenant ACTIF." if c.est_actif else "Paiement en attente de traitement..."
         return HttpResponse(f"""
             <html>
-                <body style='text-align:center; font-family:sans-serif; padding:50px;'>
-                    <h1>{c.nom}</h1>
-                    <p style='font-size:1.2em;'>{msg}</p>
-                    <br><br>
-                    <p>Vous pouvez retourner dans l'application.</p>
+                <head><meta charset="utf-8"></head>
+                <body style='text-align:center; font-family:sans-serif; padding:50px; background:#f4f4f4;'>
+                    <div style='background:white; padding:30px; border-radius:15px; display:inline-block; border:1px solid #ddd;'>
+                        <h1 style='color:#f1c40f;'>{c.nom}</h1>
+                        <p style='font-size:1.2em;'>{msg}</p>
+                        <hr>
+                        <p>Vous pouvez maintenant fermer cette page et retourner dans l'application.</p>
+                    </div>
                 </body>
             </html>
         """)
@@ -164,7 +166,7 @@ def verifier_statut(request, id):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def valider_paiement_manuel(request, chauffeur_id):
-    """Utilitaire pour forcer l'activation si besoin."""
+    """Force l'activation d'un chauffeur sans passer par PayTech."""
     try:
         c = Chauffeur.objects.get(id=chauffeur_id)
         c.enregistrer_paiement()

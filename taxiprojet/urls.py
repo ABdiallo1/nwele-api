@@ -1,8 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from django.http import HttpResponse
 
-# L'import relatif (.) est la solution pour Render
+# L'import relatif (.) garantit que Django trouve views.py dans le même dossier
 from .views import (
     ChauffeurViewSet, 
     liste_taxis, 
@@ -15,27 +14,27 @@ from .views import (
     valider_paiement_manuel
 )
 
-# Configuration du Router pour les vues d'administration (ModelViewSet)
+# Configuration du Router pour les vues d'administration automatique (DRF)
 router = DefaultRouter()
 router.register(r'chauffeurs-admin', ChauffeurViewSet)
 
 urlpatterns = [
-    # Route racine pour l'administration des chauffeurs
+    # 1. Routes de l'API d'administration (CRUD)
     path('', include(router.urls)),
     
-    # Routes Espace Client
+    # 2. Routes Espace Client (Passager)
     path('liste-taxis/', liste_taxis, name='liste_taxis'),
     
-    # Routes Espace Chauffeur
+    # 3. Routes Espace Chauffeur (Profil & Connexion)
     path('connexion-chauffeur/', connexion_chauffeur, name='connexion_chauffeur'),
     path('profil-chauffeur/<int:pk>/', profil_chauffeur, name='profil_chauffeur'),
     path('mettre-a-jour-chauffeur/<int:pk>/', mettre_a_jour_chauffeur, name='mettre_a_jour_chauffeur'),
     
-    # Routes Système de Paiement PayTech
+    # 4. Routes Système de Paiement PayTech
     path('creer-lien-paytech/', creer_lien_paytech, name='creer_lien_paytech'),
     path('paytech-webhook/', paytech_webhook, name='paytech_webhook'),
     path('verifier-statut/<int:id>/', verifier_statut, name='verifier_statut'),
     
-    # Route de secours / Manuelle
+    # 5. Route de secours (Validation manuelle par l'admin)
     path('valider-manuel/<int:chauffeur_id>/', valider_paiement_manuel, name='valider_paiement_manuel'),
 ]

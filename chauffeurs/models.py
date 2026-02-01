@@ -10,7 +10,7 @@ class Chauffeur(models.Model):
     telephone = models.CharField(max_length=20, unique=True)
     plaque_immatriculation = models.CharField(max_length=20, blank=True)
     
-    # REMPLACE ImageField par FileField ici
+    # Utilisation de FileField pour éviter les dépendances système complexes sur Render
     photo_permis = models.FileField(upload_to='chauffeurs/permis/', null=True, blank=True)
     photo_voiture = models.FileField(upload_to='chauffeurs/voitures/', null=True, blank=True)
     
@@ -30,19 +30,21 @@ class Chauffeur(models.Model):
     # --- LOGIQUE D'ABONNEMENT ---
 
     def enregistrer_paiement(self):
-        """Ajoute 30 jours à l'abonnement."""
+        """Ajoute 30 jours à l'abonnement de manière intelligente."""
         self.est_actif = True
         maintenant = timezone.now()
         
+        # Si déjà actif, on ajoute 30 jours à la suite
         if self.date_expiration and self.date_expiration > maintenant:
             self.date_expiration += timedelta(days=30)
+        # Si expiré ou nouveau, on part de maintenant
         else:
             self.date_expiration = maintenant + timedelta(days=30)
         
         self.save()
 
     def verifier_statut_abonnement(self):
-        """Désactive le chauffeur si la date est dépassée."""
+        """Vérifie l'expiration et coupe l'accès si nécessaire."""
         if self.date_expiration:
             if self.date_expiration < timezone.now():
                 self.est_actif = False
@@ -55,26 +57,28 @@ class Chauffeur(models.Model):
         self.save()
 
     def jours_restants(self):
-        """Nombre de jours avant expiration."""
+        """Retourne le nombre de jours entiers restants."""
         if self.date_expiration and self.date_expiration > timezone.now():
             delta = self.date_expiration - timezone.now()
             return max(0, delta.days)
         return 0
 
     def est_vraiment_en_ligne(self):
-        """Vérifie si le GPS a bougé il y a moins de 5 min."""
+        """Considère le chauffeur hors-ligne si pas de mise à jour GPS depuis 5 min."""
         if not self.est_en_ligne or not self.est_actif:
             return False
         seuil = timezone.now() - timedelta(minutes=5)
         return self.updated_at >= seuil
 
-    # --- AFFICHAGE IMAGES DANS L'ADMIN ---
+    # --- AFFICHAGE DANS L'ADMIN DJANGO ---
     def apercu_permis(self):
         if self.photo_permis:
-            return mark_safe(f'<img src="{self.photo_permis.url}" width="100" />')
+            return mark_safe(f'<img src="{self.photo_permis.url}" width="100" style="border-radius:5px;" />')
         return "Pas de photo"
+    apercu_permis.short_description = "Aperçu Permis"
 
     def apercu_voiture(self):
         if self.photo_voiture:
-            return mark_safe(f'<img src="{self.photo_voiture.url}" width="100" />')
+            return mark_safe(f'<img src="{self.photo_voiture.url}" width="100" style="border-radius:5px;" />')
         return "Pas de photo"
+    apercu_voiture.short_description = "Aperçu Voiture"
