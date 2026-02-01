@@ -43,3 +43,5 @@ def create_admin_automatiquement(sender, **kwargs):
                 password='Parser1234'
             )
             print("ADMIN CRÉÉ : admin / Parser1234")
+
+            

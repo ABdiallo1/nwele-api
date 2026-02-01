@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models import Chauffeur
 from django.utils import timezone
+from rest_framework import serializers
+from .models import Chauffeur
 
 class ChauffeurSerializer(serializers.ModelSerializer):
     # Champ calculé pour afficher le nombre de jours restants
@@ -33,3 +35,10 @@ class ChauffeurSerializer(serializers.ModelSerializer):
                 delta = obj.date_expiration - maintenant
                 return delta.days
         return 0
+    
+
+
+class ChauffeurSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Chauffeur
+        fields = '__all__' # Prend tous les champs du modèle
