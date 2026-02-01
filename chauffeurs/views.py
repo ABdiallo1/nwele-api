@@ -40,18 +40,16 @@ def liste_taxis(request):
     } for t in taxis]
     return Response(data)
 
-# --- 3. CRÉATION DU LIEN DE PAIEMENT (Supporte GET pour test navigateur) ---
+# --- 3. CRÉATION DU LIEN DE PAIEMENT ---
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
 def creer_chauffeur_manuel(request):
-    # Récupère le téléphone soit dans l'URL (?telephone=) soit dans le corps JSON
     if request.method == 'GET':
         telephone = request.query_params.get('telephone')
     else:
         telephone = request.data.get('telephone')
 
     if not telephone:
-        return Response({'error': 'Numéro de téléphone requis'}, status=400)
+        return Response({'error': 'Numero de telephone requis'}, status=400)
 
     try:
         chauffeur = Chauffeur.objects.get(telephone=telephone)
@@ -96,14 +94,14 @@ def paytech_webhook(request):
             return Response({"error": str(e)}, status=400)
     return Response({"error": "No data"}, status=400)
 
-# --- 5. VÉRIFICATION STATUT ---
+# --- 5. VERIFICATION STATUT ---
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def verifier_statut(request, id):
     try:
         chauffeur = Chauffeur.objects.get(id=id)
         chauffeur.verifier_statut_abonnement() 
-        return HttpResponse(f"<h1>Succès</h1><p>Compte de {chauffeur.nom} activé.</p>")
+        return HttpResponse(f"<h1>Succes</h1><p>Compte de {chauffeur.nom} active.</p>")
     except Chauffeur.DoesNotExist:
         return HttpResponse("Introuvable", status=404)
 
