@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -6,12 +7,53 @@ from .models import Chauffeur
 from .serializers import ChauffeurSerializer
 import json, requests, uuid
 
+class ChauffeurViewSet(viewsets.ModelViewSet):
+    queryset = Chauffeur.objects.all()
+    serializer_class = ChauffeurSerializer
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def liste_taxis(request):
     taxis = Chauffeur.objects.filter(est_en_ligne=True, est_actif=True)
     serializer = ChauffeurSerializer(taxis, many=True)
     return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def connexion_chauffeur(request):
+    telephone = request.data.get('telephone')
+    try:
+        chauffeur = Chauffeur.objects.get(telephone=telephone)
+        return Response({
+            "id": chauffeur.id,
+            "nom": chauffeur.nom,
+            "est_actif": chauffeur.est_actif,
+            "jours_restants": chauffeur.jours_restants()
+        })
+    except Chauffeur.DoesNotExist:
+        return Response({"error": "Chauffeur non trouvé"}, status=404)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def profil_chauffeur(request, pk):
+    try:
+        chauffeur = Chauffeur.objects.get(pk=pk)
+        return Response(ChauffeurSerializer(chauffeur).data)
+    except Chauffeur.DoesNotExist:
+        return Response({"error": "Profil introuvable"}, status=404)
+
+@api_view(['PATCH', 'PUT'])
+@permission_classes([AllowAny])
+def mettre_a_jour_chauffeur(request, pk):
+    try:
+        chauffeur = Chauffeur.objects.get(pk=pk)
+        serializer = ChauffeurSerializer(chauffeur, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Chauffeur.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
@@ -35,7 +77,7 @@ def creer_lien_paytech(request):
         }
         r = requests.post("https://paytech.sn/api/payment/request-payment", data=payload, headers=headers)
         return Response(r.json())
-    except Exception as e:
+    except Exception:
         return Response({'error': 'Chauffeur introuvable'}, status=404)
 
 @api_view(['POST'])
@@ -51,6 +93,20 @@ def paytech_webhook(request):
     return Response({"status": "FAILED"}, status=400)
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def verifier_statut(request, id):
-    c = Chauffeur.objects.get(id=id)
-    return HttpResponse(f"<h1>{c.nom}</h1><p>Statut : {'ACTIF' if c.est_actif else 'INACTIF'}</p>")
+    try:
+        c = Chauffeur.objects.get(id=id)
+        return HttpResponse(f"<h1>{c.nom}</h1><p>Statut : {'ACTIF' if c.est_actif else 'INACTIF'}</p>")
+    except:
+        return HttpResponse("Chauffeur inconnu")
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def valider_paiement_manuel(request, chauffeur_id):
+    try:
+        c = Chauffeur.objects.get(id=chauffeur_id)
+        c.enregistrer_paiement()
+        return Response({"message": "Validé"})
+    except:
+        return Response(status=404)
