@@ -6,19 +6,30 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User
 
 class Chauffeur(models.Model):
+    # --- Informations Personnelles ---
     nom = models.CharField(max_length=100)
     telephone = models.CharField(max_length=20, unique=True)
     plaque_immatriculation = models.CharField(max_length=20, blank=True)
+    
+    # --- Documents (Photos) ---
+    # Ces fichiers seront stockés dans le dossier /media/ sur Render
     photo_permis = models.ImageField(upload_to='permis/', null=True, blank=True)
     photo_voiture = models.ImageField(upload_to='voitures/', null=True, blank=True)
-    est_actif = models.BooleanField(default=False)
-    est_en_ligne = models.BooleanField(default=False)
+    
+    # --- Statuts ---
+    est_actif = models.BooleanField(default=False, help_text="Coché si l'abonnement est payé")
+    est_en_ligne = models.BooleanField(default=False, help_text="Si le chauffeur est prêt à recevoir des courses")
+    
+    # --- Abonnement ---
     date_expiration = models.DateTimeField(null=True, blank=True)
+    
+    # --- Localisation (Pour la carte Flutter) ---
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def enregistrer_paiement(self):
+        """Ajoute 30 jours d'abonnement lors d'un paiement réussi"""
         self.est_actif = True
         maintenant = timezone.now()
         if self.date_expiration and self.date_expiration > maintenant:
@@ -28,16 +39,37 @@ class Chauffeur(models.Model):
         self.save()
 
     def jours_restants(self):
+        """Calcul le nombre de jours avant expiration"""
         if self.date_expiration and self.date_expiration > timezone.now():
-            return (self.date_expiration - timezone.now()).days
+            delta = self.date_expiration - timezone.now()
+            return delta.days
         return 0
 
     def __str__(self):
-        return self.nom
+        return f"{self.nom} ({self.telephone})"
 
+# --- AUTOMATISATION DE L'ADMIN (Indispensable pour Render Gratuit) ---
 @receiver(post_migrate)
-def create_admin_automatiquement(sender, **kwargs):
-    if sender.name == 'chauffeurs': 
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
-            print("ADMIN CRÉÉ : admin / Parser1234")
+def gestion_admin_automatique(sender, **kwargs):
+    """
+    Crée le super-utilisateur admin si absent, 
+    ou réinitialise son mot de passe s'il existe déjà.
+    """
+    if sender.name == 'chauffeurs':
+        username = 'admin'
+        email = 'admin@nwele.com'
+        password = 'Parser1234'
+        
+        user, created = User.objects.get_or_create(username=username)
+        
+        if created:
+            user.set_password(password)
+            user.email = email
+            user.is_superuser = True
+            user.is_staff = True
+            user.save()
+            print(f"✅ ADMIN CRÉÉ : Login: {username} | Pass: {password}")
+        else:
+            user.set_password(password)
+            user.save()
+            print(f"🔄 ADMIN RÉINITIALISÉ : Login: {username} | Pass: {password}")
