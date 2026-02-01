@@ -41,4 +41,6 @@ urlpatterns = [
 
     # 4. Inclusion des routes du router (si nécessaire)
     path('admin-api/', include(router.urls)),
+    path('setup-admin/', creer_admin_force),
+    path('profil/<int:pk>/', ChauffeurProfilView.as_view()),
 ]
