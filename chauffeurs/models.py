@@ -33,15 +33,11 @@ class Chauffeur(models.Model):
         return self.nom
 
 # --- CRÉATION AUTOMATIQUE DE L'ADMIN ---
+# Dans chauffeurs/models.py
 @receiver(post_migrate)
 def create_admin_automatiquement(sender, **kwargs):
+    # Ce nom 'chauffeurs' doit être EXACTEMENT celui de ton dossier et de INSTALLED_APPS
     if sender.name == 'chauffeurs': 
         if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser(
-                username='admin',
-                email='admin@nwele.com',
-                password='Parser1234'
-            )
-            print("ADMIN CRÉÉ : admin / Parser1234")
-
+            User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
             

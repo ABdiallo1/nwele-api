@@ -14,6 +14,7 @@ from .views import (
     valider_paiement_manuel
 )
 
+
 # Configuration du Router pour les vues d'administration automatique (DRF)
 router = DefaultRouter()
 router.register(r'chauffeurs-admin', ChauffeurViewSet)
@@ -39,4 +40,9 @@ urlpatterns = [
     path('valider-manuel/<int:chauffeur_id>/', valider_paiement_manuel, name='valider_paiement_manuel'),
     path('admin/', admin.site.urls), # C'est cette ligne qui ouvre l'accès
     path('api/', include('api.urls')),
+    path('', include(router.urls)),
+    path('liste-taxis/', liste_taxis),
+    path('creer-lien-paytech/', creer_lien_paytech),
+    path('paytech-webhook/', paytech_webhook),
+    path('verifier-statut/<int:id>/', verifier_statut),
 ]
