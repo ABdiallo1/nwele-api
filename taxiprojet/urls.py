@@ -1,43 +1,43 @@
-from django.contrib import admin
-from django.urls import path, include  # Ajout de 'include' ici
-from django.conf import settings
-from django.conf.urls.static import static
-from chauffeurs import views 
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import (
+    ChauffeurViewSet, 
+    liste_taxis, 
+    connexion_chauffeur, 
+    profil_chauffeur, 
+    mettre_a_jour_chauffeur,
+    creer_lien_paytech,
+    paytech_webhook,
+    verifier_statut,
+    valider_paiement_manuel
+)
+
+# Utilisation du Router pour l'administration DRF
+router = DefaultRouter()
+router.register(r'chauffeurs-admin', ChauffeurViewSet)
 
 urlpatterns = [
-    # 1. Interface d'administration
-    path('admin/', admin.site.urls),
+    # --- Administration ---
+    path('', include(router.urls)),
 
-    # 2. ESPACE CLIENT (PASSAGER)
-    path('api/liste-taxis/', views.liste_taxis, name='liste_taxis'),
+    # --- Espace Client (Passager) ---
+    path('liste-taxis/', liste_taxis, name='liste_taxis'),
 
-    # 3. ESPACE CHAUFFEUR
-    path('api/connexion-chauffeur/', views.connexion_chauffeur, name='connexion_chauffeur'),
-    path('api/profil-chauffeur/<int:pk>/', views.profil_chauffeur, name='profil_chauffeur'),
-    path('api/mettre-a-jour-chauffeur/<int:pk>/', views.mettre_a_jour_chauffeur, name='mettre_a_jour_chauffeur'),
-    path('api/deconnexion-chauffeur/<int:pk>/', views.deconnexion_chauffeur, name='deconnexion_chauffeur'),
+    # --- Espace Chauffeur ---
+    path('connexion-chauffeur/', connexion_chauffeur, name='connexion_chauffeur'),
+    path('profil-chauffeur/<int:pk>/', profil_chauffeur, name='profil_chauffeur'),
+    path('mettre-a-jour-chauffeur/<int:pk>/', mettre_a_jour_chauffeur, name='mettre_a_jour_chauffeur'),
 
-    # 4. SYSTÈME DE PAIEMENT
-    # C'est cette ligne que tu dois utiliser pour PayTech !
-    path('api/creer-lien-paytech/', views.creer_chauffeur_manuel, name='creer_lien_paytech'),
+    # --- Système de Paiement PayTech ---
+    # C'est cette URL que Flutter appelle pour obtenir le lien de paiement
+    path('creer-lien-paytech/', creer_lien_paytech, name='creer_lien_paytech'),
     
-    path('api/paytech-webhook/', views.paytech_webhook, name='paytech_webhook'),
-    path('api/verifier-statut/<int:id>/', views.verifier_statut, name='verifier_statut'),
-    path('api/valider-chauffeur/<int:chauffeur_id>/', views.valider_paiement_manuel, name='valider_manuel'),
-
-    # 5. ADMINISTRATION API (REST Framework)
-    path('api/chauffeurs-all/', views.ChauffeurViewSet.as_view({
-        'get': 'list', 
-        'post': 'create'
-    }), name='chauffeurs_list_drf'),
+    # URL de retour (Success URL) : affichage simple pour le chauffeur
+    path('verifier-statut/<int:id>/', verifier_statut, name='verifier_statut'),
     
-    path('api/chauffeurs-all/<int:pk>/', views.ChauffeurViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'delete': 'destroy'
-    }), name='chauffeur_detail_drf'),
-] 
-
-# GESTION DES FICHIERS MÉDIAS
-if settings.DEBUG or True: 
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # URL IPN (Webhook) : LA PLUS IMPORTANTE. PayTech appelle cette URL pour valider l'argent
+    path('paytech-webhook/', paytech_webhook, name='paytech_webhook'),
+    
+    # Utilitaire pour valider un paiement manuellement depuis l'admin ou navigateur
+    path('valider-manuel/<int:chauffeur_id>/', valider_paiement_manuel, name='valider_paiement_manuel'),
+]
