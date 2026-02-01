@@ -7,13 +7,14 @@ from django.contrib.auth.models import User
 
 class Chauffeur(models.Model):
     # --- Informations Personnelles ---
-    nom = models.CharField(max_length=100)
+    nom = models.CharField(max_length=100, verbose_name="Nom Complet")
     telephone = models.CharField(max_length=20, unique=True)
-    plaque_immatriculation = models.CharField(max_length=20, blank=True)
+    plaque_immatriculation = models.CharField(max_length=20, blank=True, null=True)
     
     # --- Documents (Photos) ---
-    photo_permis = models.ImageField(upload_to='permis/', null=True, blank=True)
-    photo_voiture = models.ImageField(upload_to='voitures/', null=True, blank=True)
+    # Remplacement de ImageField par FileField pour éviter l'erreur Pillow sur Python 3.15
+    photo_permis = models.FileField(upload_to='permis/', null=True, blank=True)
+    photo_voiture = models.FileField(upload_to='voitures/', null=True, blank=True)
     
     # --- Statuts ---
     est_actif = models.BooleanField(default=False, verbose_name="Abonnement Actif")
@@ -50,7 +51,6 @@ class Chauffeur(models.Model):
 
 @receiver(post_migrate)
 def gestion_admin_automatique(sender, **kwargs):
-    # On cible l'app 'chauffeurs' pour déclencher l'action
     if sender.name == 'chauffeurs':
         username = 'admin'
         password = 'Parser1234'
@@ -64,6 +64,6 @@ def gestion_admin_automatique(sender, **kwargs):
                 user = User.objects.get(username=username)
                 user.set_password(password)
                 user.save()
-                print(f"🔄 Mot de passe de {username} mis à jour")
+                print(f"🔄 Admin déjà présent : {username}")
         except Exception as e:
-            print(f"⚠️ Erreur lors de la gestion admin : {e}")
+            print(f"⚠️ Erreur admin : {e}")
