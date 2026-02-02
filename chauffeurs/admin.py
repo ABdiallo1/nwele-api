@@ -5,7 +5,7 @@ from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    # 1. AFFICHAGE : Exactement comme C_36 (Pas de GPS ici)
+    # 1. Liste principale identique à C_36 (Sans colonnes GPS)
     list_display = (
         'aperçu_permis', 
         'aperçu_voiture', 
@@ -17,29 +17,17 @@ class ChauffeurAdmin(admin.ModelAdmin):
         'reste'
     )
     
-    # On retire latitude/longitude de list_editable puisqu'elles ne sont plus affichées
+    # On permet de modifier uniquement le nom et tel directement
     list_editable = ('nom_complet', 'telephone') 
     
     search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
     list_filter = ('est_actif', 'est_en_ligne')
 
-    # --- 2. SIMULATION : Visible uniquement dans la fiche (Comme C_77) ---
-    fieldsets = (
-        ("Identité & Photos", {
-            'fields': ('nom_complet', 'telephone', 'plaque_immatriculation', 'photo_permis', 'photo_voiture')
-        }),
-        ("Simulation GPS", {
-            'fields': ('latitude', 'longitude'),
-            'description': "Modifiez ces coordonnées pour simuler la position sur la carte."
-        }),
-        ("Statut & Abonnement", {
-            'fields': ('est_actif', 'est_en_ligne', 'date_expiration')
-        }),
-    )
+    # --- CORRECTION DES FONCTIONS (Sécurisées pour éviter le crash) ---
 
-    # --- MÉTHODES DE RENDU POUR LE LOOK C_36 ---
     def aperçu_permis(self, obj):
         if obj.photo_permis:
+            # Correction : Utilisation d'un seul argument propre
             return format_html('<img src="{}" style="width:45px; height:45px; object-fit:cover; border-radius:4px;" />', obj.photo_permis.url)
         return "N/A"
     aperçu_permis.short_description = "PERMIS"
@@ -68,3 +56,16 @@ class ChauffeurAdmin(admin.ModelAdmin):
                 return f"{days} j"
             return format_html('<span style="color:#dc3545; font-weight:bold;">Expiré</span>')
         return "-"
+
+    # 2. Formulaire de modification (GPS visible ici pour tes simulations)
+    fieldsets = (
+        ("Identité & Photos", {
+            'fields': ('nom_complet', 'telephone', 'plaque_immatriculation', 'photo_permis', 'photo_voiture')
+        }),
+        ("Localisation (Simulation)", {
+            'fields': ('latitude', 'longitude'),
+        }),
+        ("Statut", {
+            'fields': ('est_actif', 'est_en_ligne', 'date_expiration')
+        }),
+    )
