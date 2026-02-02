@@ -5,67 +5,62 @@ from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    # 1. Liste principale identique à C_36 (Sans colonnes GPS)
+    # 1. Configuration de la liste (Exactement comme C_36)
     list_display = (
-        'aperçu_permis', 
-        'aperçu_voiture', 
+        'get_permis', 
+        'get_auto', 
         'nom_complet', 
         'telephone', 
         'plaque_immatriculation', 
-        'service', 
-        'abonnement', 
-        'reste'
+        'get_service', 
+        'get_abonnement', 
+        'get_reste'
     )
     
-    # On permet de modifier uniquement le nom et tel directement
-    list_editable = ('nom_complet', 'telephone') 
-    
+    # Pas de colonnes GPS ici pour rester comme C_36
+    list_editable = ('nom_complet', 'telephone')
     search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
-    list_filter = ('est_actif', 'est_en_ligne')
 
-    # --- CORRECTION DES FONCTIONS (Sécurisées pour éviter le crash) ---
+    # --- 2. MÉTHODES DE RENDU SÉCURISÉES ---
 
-    def aperçu_permis(self, obj):
+    def get_permis(self, obj):
         if obj.photo_permis:
-            # Correction : Utilisation d'un seul argument propre
-            return format_html('<img src="{}" style="width:45px; height:45px; object-fit:cover; border-radius:4px;" />', obj.photo_permis.url)
+            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;" />', obj.photo_permis.url)
         return "N/A"
-    aperçu_permis.short_description = "PERMIS"
+    get_permis.short_description = "PERMIS"
 
-    def aperçu_voiture(self, obj):
+    def get_auto(self, obj):
         if obj.photo_voiture:
-            return format_html('<img src="{}" style="width:45px; height:45px; object-fit:cover; border-radius:4px;" />', obj.photo_voiture.url)
+            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;" />', obj.photo_voiture.url)
         return "N/A"
-    aperçu_voiture.short_description = "AUTO"
+    get_auto.short_description = "AUTO"
 
-    def service(self, obj):
+    def get_service(self, obj):
         color = "#28a745" if obj.est_en_ligne else "#6c757d"
-        text = "EN LIGNE" if obj.est_en_ligne else "HORS LIGNE"
-        return format_html('<span style="background:{}; color:white; padding:3px 10px; border-radius:12px; font-weight:bold; font-size:11px;">{}</span>', color, text)
+        label = "EN LIGNE" if obj.est_en_ligne else "HORS LIGNE"
+        return format_html('<span style="background:{}; color:white; padding:3px 8px; border-radius:10px; font-weight:bold; font-size:10px;">{}</span>', color, label)
+    get_service.short_description = "SERVICE"
 
-    def abonnement(self, obj):
+    def get_abonnement(self, obj):
         if obj.est_actif:
             return format_html('<span style="color:#28a745; font-weight:bold;">✅ ACTIF</span>')
         return format_html('<span style="color:#dc3545; font-weight:bold;">❌ INACTIF</span>')
+    get_abonnement.short_description = "ABONNEMENT"
 
-    def reste(self, obj):
+    def get_reste(self, obj):
         if obj.date_expiration:
             diff = obj.date_expiration - timezone.now()
             days = diff.days
             if days > 0:
                 return f"{days} j"
-            return format_html('<span style="color:#dc3545; font-weight:bold;">Expiré</span>')
+            return format_html('<span style="color:red; font-weight:bold;">Expiré</span>')
         return "-"
+    get_reste.short_description = "RESTE"
 
-    # 2. Formulaire de modification (GPS visible ici pour tes simulations)
+    # --- 3. FICHE DE MODIFICATION (Simulation GPS ici comme C_77) ---
     fieldsets = (
-        ("Identité & Photos", {
-            'fields': ('nom_complet', 'telephone', 'plaque_immatriculation', 'photo_permis', 'photo_voiture')
-        }),
-        ("Localisation (Simulation)", {
-            'fields': ('latitude', 'longitude'),
-        }),
-        ("Statut", {
-            'fields': ('est_actif', 'est_en_ligne', 'date_expiration')
-        }),
+        ("Identité", {'fields': ('nom_complet', 'telephone', 'plaque_immatriculation')}),
+        ("Photos", {'fields': ('photo_permis', 'photo_voiture')}),
+        ("Simulation GPS", {'fields': ('latitude', 'longitude')}),
+        ("Abonnement & Statut", {'fields': ('est_actif', 'est_en_ligne', 'date_expiration')}),
     )
