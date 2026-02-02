@@ -1,42 +1,42 @@
 from django.contrib import admin
+from django.utils.html import format_html
 from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    # Configuration de la vue en liste (ton tableau de bord)
+    # 1. On ajoute les colonnes des photos et de la plaque dans list_display
     list_display = (
         'id', 
         'nom_complet', 
         'telephone', 
         'plaque_immatriculation', 
-        'est_actif',     # Icône Vert/Rouge pour l'abonnement
-        'est_en_ligne',  # Icône Vert/Rouge pour la présence
+        'aperçu_voiture',  # Affiche la miniature de la voiture
+        'est_actif', 
+        'est_en_ligne', 
         'date_expiration'
     )
     
-    # Permet de modifier le statut "Actif" directement depuis la liste sans ouvrir la fiche
-    list_editable = ('est_actif',) 
-
-    # Ajoute des filtres sur la droite pour voir par exemple uniquement ceux "En ligne"
+    list_editable = ('est_actif', 'est_en_ligne') 
     list_filter = ('est_actif', 'est_en_ligne')
-    
-    # Barre de recherche pour trouver un chauffeur par nom, tel ou plaque
     search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
-    
-    # Organisation de la fiche de modification (quand tu cliques sur l'ID)
+
+    # 2. On organise la fiche de modification (quand on clique sur le chauffeur)
     fieldsets = (
-        ("Identité du Chauffeur", {
+        ("Identité & Véhicule", {
             'fields': ('nom_complet', 'telephone', 'plaque_immatriculation')
         }),
-        ("Documents & Photos", {
+        ("Documents Photos", {
             'fields': ('photo_permis', 'photo_voiture'),
-            'description': "Cliquez sur les liens pour voir les photos envoyées."
         }),
-        ("Gestion & Surveillance", {
+        ("Statut", {
             'fields': ('est_actif', 'est_en_ligne', 'date_expiration')
         }),
-        ("Géolocalisation", {
-            'fields': ('latitude', 'longitude'),
-            'classes': ('collapse',) # Cache cette section par défaut
-        }),
     )
+
+    # 3. Fonction pour afficher la miniature de la voiture dans le tableau
+    def aperçu_voiture(self, obj):
+        if obj.photo_voiture:
+            return format_html('<img src="{}" style="width: 50px; height: auto; border-radius: 5px;" />', obj.photo_voiture.url)
+        return "Pas de photo"
+    
+    aperçu_voiture.short_description = "Véhicule"
