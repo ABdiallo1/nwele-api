@@ -6,13 +6,13 @@ from .models import Chauffeur
 class ChauffeurAdmin(admin.ModelAdmin):
     # On utilise uniquement des champs réels de la base pour éviter les erreurs de rendu
     list_display = (
-        'id', 
+        'aperçu_permis', 
+        'aperçu_voiture', 
         'nom_complet', 
         'telephone', 
         'plaque_immatriculation', 
         'est_en_ligne', 
-        'est_actif', 
-        'date_expiration'
+        'est_actif'
     )
     
     # Très important pour tes simulations GPS sans ouvrir la fiche
@@ -36,3 +36,14 @@ class ChauffeurAdmin(admin.ModelAdmin):
             'fields': ('est_actif', 'est_en_ligne', 'date_expiration')
         }),
     )
+    def aperçu_permis(self, obj):
+        if obj.photo_permis:
+            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;" />', obj.photo_permis.url)
+        return "N/A"
+    aperçu_permis.short_description = "PERMIS"
+
+    def aperçu_voiture(self, obj):
+        if obj.photo_voiture:
+            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;" />', obj.photo_voiture.url)
+        return "N/A"
+    aperçu_voiture.short_description = "AUTO"
