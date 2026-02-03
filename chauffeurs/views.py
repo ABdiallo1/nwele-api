@@ -1,7 +1,7 @@
 import os
 import requests
 from django.shortcuts import get_object_or_404, redirect
-from django.utils import timezone  # Ajouté : nécessaire pour ref_command
+from django.utils import timezone
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -22,42 +22,75 @@ def creer_admin_force(request):
         return HttpResponse("✅ Admin créé avec succès ! Connectez-vous sur /admin/")
     return HttpResponse("⚠️ L'admin existe déjà. Utilisez 'admin' et 'Parser1234'")
 
-# --- 2. LISTE DES CHAUFFEURS POUR LA CARTE ---
+# --- 2. CONNEXION DU CHAUFFEUR (CORRECTIF POUR FLUTTER) ---
+@api_view(['POST'])
+def connexion_chauffeur(request):
+    """
+    Vue pour vérifier si un chauffeur existe via son numéro de téléphone.
+    Nettoie le numéro pour éviter les erreurs d'espaces.
+    """
+    telephone = request.data.get('telephone', '').strip()
+    
+    # On cherche le chauffeur. Si plusieurs ont le même numéro (erreur de saisie), 
+    # on prend le premier (.first()) pour éviter un crash.
+    chauffeur = Chauffeur.objects.filter(telephone=telephone).first()
+    
+    if chauffeur:
+        serializer = ChauffeurSerializer(chauffeur, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    return Response({"error": "Chauffeur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+
+# --- 3. MISE À JOUR POSITION ET STATUT ---
+@api_view(['PATCH'])
+def mettre_a_jour_chauffeur(request, pk):
+    """Permet au chauffeur de basculer 'en ligne' et d'envoyer son GPS."""
+    chauffeur = get_object_or_404(Chauffeur, pk=pk)
+    
+    # Sécurité : Si l'abonnement est expiré, on refuse la mise en ligne
+    if not chauffeur.est_actif and request.data.get('est_en_ligne') == True:
+        return Response({"error": "Abonnement expiré"}, status=status.HTTP_403_FORBIDDEN)
+        
+    serializer = ChauffeurSerializer(chauffeur, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# --- 4. LISTE DES CHAUFFEURS POUR LA CARTE CLIENT ---
 class ChauffeurListView(APIView):
     def get(self, request):
-        # On ne montre que les chauffeurs actifs et en ligne
+        # On ne montre que les chauffeurs actifs ET en ligne
         chauffeurs = Chauffeur.objects.filter(est_en_ligne=True, est_actif=True)
         serializer = ChauffeurSerializer(chauffeurs, many=True, context={'request': request})
         return Response(serializer.data)
 
-# --- 3. PROFIL INDIVIDUEL ---
+# --- 5. PROFIL INDIVIDUEL ---
 class ChauffeurProfilView(APIView):
     def get(self, request, pk):
         chauffeur = get_object_or_404(Chauffeur, pk=pk)
         serializer = ChauffeurSerializer(chauffeur, context={'request': request})
         return Response(serializer.data)
 
-# --- 4. DEMANDE DE PAIEMENT PAYTECH ---
-@api_view(['GET', 'POST'])
+# --- 6. DEMANDE DE PAIEMENT PAYTECH ---
+@api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     
     PAYTECH_URL = "https://paytech.sn/api/payment/request-payment"
-    # Création d'une référence unique pour le paiement
     ref_command = f"PAY-{chauffeur.id}-{int(timezone.now().timestamp())}"
     
-    # Récupération des clés API configurées sur Render
     api_key = os.getenv("PAYTECH_API_KEY")
     api_secret = os.getenv("PAYTECH_API_SECRET")
 
     payload = {
-        "item_name": "Frais d'activation Compte Chauffeur Nwele",
-        "item_price": "10000", # Le chauffeur paie 10 000 FCFA
+        "item_name": "Activation Compte Nwele",
+        "item_price": "10000",
         "currency": "XOF",
         "ref_command": ref_command,
         "command_name": f"Abonnement 30j - {chauffeur.nom_complet}",
-        "env": "test", # Reste en 'test' pour tes essais
-        "success_url": "https://nwele-api.onrender.com/admin/chauffeurs/chauffeur/",
+        "env": "test",
+        "success_url": "https://nwele-api.onrender.com/admin/",
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/", 
     }
     
@@ -73,31 +106,25 @@ def PaiementChauffeurView(request, chauffeur_id):
         res_data = response.json()
         
         if res_data.get('success') == 1:
-            # Redirection automatique vers Orange Money/Wave/Free
-            return redirect(res_data['redirect_url'])
+            return Response({"url": res_data['redirect_url']}, status=200)
         
         return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
-# --- 5. CALLBACK (IPN) : ACTIVATION AUTOMATIQUE DU CHAUFFEUR ---
+# --- 7. CALLBACK (IPN) : ACTIVATION ---
 @method_decorator(csrf_exempt, name='dispatch')
 class PaytechCallbackView(APIView):
     def post(self, request):
-        # PayTech envoie les données de confirmation ici après le paiement
         data = request.data
         ref_command = data.get('ref_command')
         
         if ref_command:
             try:
-                # On extrait l'ID du chauffeur depuis la référence (PAY-ID-TIMESTAMP)
                 parts = ref_command.split('-')
                 chauffeur_id = parts[1]
-                
                 chauffeur = Chauffeur.objects.get(id=chauffeur_id)
-                # Cette méthode active 'est_actif' et ajoute 30 jours (déjà dans ton model)
                 chauffeur.enregistrer_paiement() 
-                
                 return Response({"status": "success"}, status=200)
             except Exception as e:
                 return Response({"status": "error", "message": str(e)}, status=400)

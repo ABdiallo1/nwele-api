@@ -1,21 +1,27 @@
 from django.urls import path
-from .views import (
-    creer_admin_force,
-    ChauffeurListView,
-    ChauffeurProfilView,
-    PaiementChauffeurView,
-    PaytechCallbackView
-)
+from . import views # Importation globale pour éviter les oublis
 
 urlpatterns = [
-    # Route de secours pour l'admin
-    path('setup-admin/', creer_admin_force, name='setup-admin'),
+    # --- AUTHENTICATION & CONNEXION ---
+    # Cette route correspond à : baseUrl + /api/connexion-chauffeur/
+    path('connexion-chauffeur/', views.connexion_chauffeur, name='connexion-chauffeur'),
     
-    # API Chauffeurs
-    path('liste/', ChauffeurListView.as_view(), name='chauffeur-liste'),
-    path('profil/<int:pk>/', ChauffeurProfilView.as_view(), name='chauffeur-profil'),
+    # --- API CHAUFFEURS (CARTE & PROFIL) ---
+    # Pour la carte client
+    path('chauffeurs/', views.ChauffeurListView.as_view(), name='chauffeur-liste'),
+    # Pour voir un profil spécifique
+    path('chauffeurs/<int:pk>/', views.ChauffeurProfilView.as_view(), name='chauffeur-profil'),
     
-    # Paiement
-    path('payer/<int:chauffeur_id>/', PaiementChauffeurView.as_view(), name='chauffeur-payer'),
-    path('paiement/callback/', PaytechCallbackView.as_view(), name='paytech-callback'),
+    # --- MISE À JOUR TEMPS RÉEL ---
+    # Pour envoyer la position GPS et le statut en ligne depuis l'app chauffeur
+    path('mettre-a-jour-chauffeur/<int:pk>/', views.mettre_a_jour_chauffeur, name='maj-chauffeur'),
+
+    # --- PAIEMENT PAYTECH ---
+    # L'app Flutter appelle : /api/payer/ID/
+    path('payer/<int:chauffeur_id>/', views.PaiementChauffeurView, name='chauffeur-payer'),
+    # Le serveur PayTech appelle cette route en arrière-plan
+    path('paiement/callback/', views.PaytechCallbackView.as_view(), name='paytech-callback'),
+
+    # --- UTILITAIRES ---
+    path('setup-admin/', views.creer_admin_force, name='setup-admin'),
 ]
