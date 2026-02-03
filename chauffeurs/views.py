@@ -1,6 +1,6 @@
 import os
 import requests
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -20,19 +20,12 @@ def creer_admin_force(request):
     if not User.objects.filter(username='admin').exists():
         User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
         return HttpResponse("✅ Admin créé avec succès ! Connectez-vous sur /admin/")
-    return HttpResponse("⚠️ L'admin existe déjà. Utilisez 'admin' et 'Parser1234'")
+    return HttpResponse("⚠️ L'admin existe déjà.")
 
-# --- 2. CONNEXION DU CHAUFFEUR (CORRECTIF POUR FLUTTER) ---
+# --- 2. CONNEXION DU CHAUFFEUR ---
 @api_view(['POST'])
 def connexion_chauffeur(request):
-    """
-    Vue pour vérifier si un chauffeur existe via son numéro de téléphone.
-    Nettoie le numéro pour éviter les erreurs d'espaces.
-    """
     telephone = request.data.get('telephone', '').strip()
-    
-    # On cherche le chauffeur. Si plusieurs ont le même numéro (erreur de saisie), 
-    # on prend le premier (.first()) pour éviter un crash.
     chauffeur = Chauffeur.objects.filter(telephone=telephone).first()
     
     if chauffeur:
@@ -44,10 +37,8 @@ def connexion_chauffeur(request):
 # --- 3. MISE À JOUR POSITION ET STATUT ---
 @api_view(['PATCH'])
 def mettre_a_jour_chauffeur(request, pk):
-    """Permet au chauffeur de basculer 'en ligne' et d'envoyer son GPS."""
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
     
-    # Sécurité : Si l'abonnement est expiré, on refuse la mise en ligne
     if not chauffeur.est_actif and request.data.get('est_en_ligne') == True:
         return Response({"error": "Abonnement expiré"}, status=status.HTTP_403_FORBIDDEN)
         
@@ -57,10 +48,9 @@ def mettre_a_jour_chauffeur(request, pk):
         return Response(serializer.data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# --- 4. LISTE DES CHAUFFEURS POUR LA CARTE CLIENT ---
+# --- 4. LISTE DES CHAUFFEURS (CLIENT) ---
 class ChauffeurListView(APIView):
     def get(self, request):
-        # On ne montre que les chauffeurs actifs ET en ligne
         chauffeurs = Chauffeur.objects.filter(est_en_ligne=True, est_actif=True)
         serializer = ChauffeurSerializer(chauffeurs, many=True, context={'request': request})
         return Response(serializer.data)
@@ -112,7 +102,7 @@ def PaiementChauffeurView(request, chauffeur_id):
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
-# --- 7. CALLBACK (IPN) : ACTIVATION ---
+# --- 7. CALLBACK (IPN) : ACTIVATION AUTOMATIQUE ---
 @method_decorator(csrf_exempt, name='dispatch')
 class PaytechCallbackView(APIView):
     def post(self, request):
