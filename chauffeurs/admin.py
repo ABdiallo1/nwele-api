@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.db import models
+from django.forms import TextInput
 from django.utils.safestring import mark_safe
 from django.utils import timezone
 from .models import Chauffeur
@@ -17,19 +19,11 @@ class ChauffeurAdmin(admin.ModelAdmin):
     )
     
     list_editable = ('nom_complet', 'telephone')
-    search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
-    list_filter = ('est_actif', 'est_en_ligne')
-
-    # --- ASTUCE POUR RÉDUIRE LA TAILLE DES CHAMPS ---
-    class Media:
-        css = {
-            'all': ('admin/css/custom_admin.css',)
-        }
-        # On injecte du CSS directement pour aller plus vite
     
-    def get_list_display_links(self, request, list_display):
-        # On permet de cliquer sur la plaque pour ouvrir la fiche
-        return ('plaque_immatriculation',)
+    # --- LA SOLUTION POUR LA LARGEUR DES CHAMPS ---
+    formfield_overrides = {
+        models.CharField: {'widget': TextInput(attrs={'style': 'width: 120px; padding: 4px;'})},
+    }
 
     # --- RENDU DES IMAGES ---
     def aperçu_permis(self, obj):
@@ -48,7 +42,7 @@ class ChauffeurAdmin(admin.ModelAdmin):
         return "🚗"
     aperçu_voiture.short_description = "AUTO"
 
-    # --- STATUTS COMPACTS ---
+    # --- STATUTS ET RESTE (VERSIONS COURTES) ---
     def statut_service(self, obj):
         color = "#28a745" if obj.est_en_ligne else "#6c757d"
         text = "OUI" if obj.est_en_ligne else "NON"
@@ -56,21 +50,13 @@ class ChauffeurAdmin(admin.ModelAdmin):
     statut_service.short_description = "SERVICE"
 
     def statut_abonnement(self, obj):
-        color = "#28a745" if obj.est_actif else "#dc3545"
         icon = "✅" if obj.est_actif else "❌"
-        return mark_safe(f'<span style="color:{color}; font-weight:bold;">{icon}</span>')
+        return mark_safe(f'<span style="font-size:14px;">{icon}</span>')
     statut_abonnement.short_description = "ABON"
 
     def reste(self, obj):
         if obj.date_expiration:
             jours = (obj.date_expiration - timezone.now()).days
-            return f"{jours}j" if jours > 0 else mark_safe('<span style="color:red;">EXP</span>')
+            return f"{jours}j" if jours > 0 else "EXP"
         return "-"
     reste.short_description = "RESTE"
-
-    fieldsets = (
-        ("Chauffeur", {'fields': ('nom_complet', 'telephone', 'plaque_immatriculation')}),
-        ("Photos", {'fields': ('photo_permis', 'photo_voiture')}),
-        ("Simulation GPS", {'fields': ('latitude', 'longitude')}),
-        ("Statut", {'fields': ('est_actif', 'est_en_ligne', 'date_expiration')}),
-    )
