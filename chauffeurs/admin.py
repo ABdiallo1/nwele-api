@@ -1,43 +1,34 @@
 from django.contrib import admin
-from django.utils.html import format_html # Indispensable pour éviter NameError
+from django.utils.html import format_html
 from django.utils import timezone
 from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    # Configuration Look C_36 avec les photos
-    list_display = (
-        'aperçu_permis', 
-        'aperçu_voiture', 
-        'nom_complet', 
-        'telephone', 
-        'plaque_immatriculation', 
-        'statut_service', 
-        'statut_abonnement', 
-        'temps_restant'
-    )
+    # On garde l'ordre exact de C_36
+    list_display = ('aperçu_permis', 'aperçu_voiture', 'nom_complet', 'telephone', 'plaque_immatriculation', 'statut_service', 'statut_abonnement', 'reste')
     
-    list_editable = ('nom_complet', 'telephone')
-    search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
+    # --- MÉTHODES DE RENDU HYPER-SÉCURISÉES ---
 
-    # --- AFFICHAGE DES PHOTOS ---
     def aperçu_permis(self, obj):
-        if obj.photo_permis and hasattr(obj.photo_permis, 'url'):
-            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;"/>', obj.photo_permis.url)
+        if obj.photo_permis:
+            # On utilise f-string pour éviter les erreurs d'arguments de format_html
+            url = obj.photo_permis.url
+            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;" />', url)
         return "N/A"
     aperçu_permis.short_description = "PERMIS"
 
     def aperçu_voiture(self, obj):
-        if obj.photo_voiture and hasattr(obj.photo_voiture, 'url'):
-            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;"/>', obj.photo_voiture.url)
+        if obj.photo_voiture:
+            url = obj.photo_voiture.url
+            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;" />', url)
         return "N/A"
     aperçu_voiture.short_description = "AUTO"
 
-    # --- BADGES DE STATUT ---
     def statut_service(self, obj):
         color = "#28a745" if obj.est_en_ligne else "#6c757d"
-        text = "EN LIGNE" if obj.est_en_ligne else "HORS LIGNE"
-        return format_html('<span style="background:{}; color:white; padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px;">{}</span>', color, text)
+        txt = "EN LIGNE" if obj.est_en_ligne else "HORS LIGNE"
+        return format_html('<span style="background:{}; color:white; padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px;">{}</span>', color, txt)
     statut_service.short_description = "SERVICE"
 
     def statut_abonnement(self, obj):
@@ -46,17 +37,17 @@ class ChauffeurAdmin(admin.ModelAdmin):
         return format_html('<b style="color:#dc3545;">❌ INACTIF</b>')
     statut_abonnement.short_description = "ABONNEMENT"
 
-    def temps_restant(self, obj):
+    def reste(self, obj):
         if obj.date_expiration:
             jours = (obj.date_expiration - timezone.now()).days
             return f"{jours} j" if jours > 0 else "Expiré"
         return "-"
-    temps_restant.short_description = "RESTE"
+    reste.short_description = "RESTE"
 
-    # Fiche de modification pour tes simulations GPS Flutter
+    # Simulation GPS toujours accessible dans la fiche pour ecran_carte.dart
     fieldsets = (
         ("Identité", {'fields': ('nom_complet', 'telephone', 'plaque_immatriculation')}),
-        ("Documents", {'fields': ('photo_permis', 'photo_voiture')}),
+        ("Photos", {'fields': ('photo_permis', 'photo_voiture')}),
         ("Simulation GPS", {'fields': ('latitude', 'longitude')}),
-        ("Statut", {'fields': ('est_actif', 'est_en_ligne', 'date_expiration')}),
+        ("État", {'fields': ('est_actif', 'est_en_ligne', 'date_expiration')}),
     )
