@@ -1,11 +1,11 @@
 from django.contrib import admin
-from django.utils.html import format_html  # <--- CETTE LIGNE MANQUAIT (image_565b10.png)
+from django.utils.html import format_html # Indispensable pour éviter NameError
 from django.utils import timezone
 from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    # Affichage identique au look C_36
+    # Configuration Look C_36 avec les photos
     list_display = (
         'aperçu_permis', 
         'aperçu_voiture', 
@@ -20,24 +20,24 @@ class ChauffeurAdmin(admin.ModelAdmin):
     list_editable = ('nom_complet', 'telephone')
     search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
 
-    # --- RENDU SÉCURISÉ DES IMAGES (C_36) ---
+    # --- AFFICHAGE DES PHOTOS ---
     def aperçu_permis(self, obj):
         if obj.photo_permis and hasattr(obj.photo_permis, 'url'):
-            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;" />', obj.photo_permis.url)
+            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;"/>', obj.photo_permis.url)
         return "N/A"
     aperçu_permis.short_description = "PERMIS"
 
     def aperçu_voiture(self, obj):
         if obj.photo_voiture and hasattr(obj.photo_voiture, 'url'):
-            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;" />', obj.photo_voiture.url)
+            return format_html('<img src="{}" width="40" height="40" style="object-fit:cover; border-radius:4px;"/>', obj.photo_voiture.url)
         return "N/A"
     aperçu_voiture.short_description = "AUTO"
 
-    # --- BADGES DE STATUT (C_36) ---
+    # --- BADGES DE STATUT ---
     def statut_service(self, obj):
         color = "#28a745" if obj.est_en_ligne else "#6c757d"
         text = "EN LIGNE" if obj.est_en_ligne else "HORS LIGNE"
-        return format_html('<span style="background:{}; color:white; padding:4px 10px; border-radius:15px; font-size:10px; font-weight:bold;">{}</span>', color, text)
+        return format_html('<span style="background:{}; color:white; padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px;">{}</span>', color, text)
     statut_service.short_description = "SERVICE"
 
     def statut_abonnement(self, obj):
@@ -53,10 +53,10 @@ class ChauffeurAdmin(admin.ModelAdmin):
         return "-"
     temps_restant.short_description = "RESTE"
 
-    # --- FICHE DE MODIFICATION (Pour tes tests GPS) ---
+    # Fiche de modification pour tes simulations GPS Flutter
     fieldsets = (
-        ("Chauffeur", {'fields': ('nom_complet', 'telephone', 'plaque_immatriculation')}),
-        ("Photos", {'fields': ('photo_permis', 'photo_voiture')}),
-        ("Simulation GPS (Flutter)", {'fields': ('latitude', 'longitude')}),
-        ("État", {'fields': ('est_actif', 'est_en_ligne', 'date_expiration')}),
+        ("Identité", {'fields': ('nom_complet', 'telephone', 'plaque_immatriculation')}),
+        ("Documents", {'fields': ('photo_permis', 'photo_voiture')}),
+        ("Simulation GPS", {'fields': ('latitude', 'longitude')}),
+        ("Statut", {'fields': ('est_actif', 'est_en_ligne', 'date_expiration')}),
     )
