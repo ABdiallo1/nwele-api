@@ -22,7 +22,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'whitenoise.runserver_nostatic',  # Pour servir les fichiers statiques en dev
+    'whitenoise.runserver_nostatic',  
     'django.contrib.staticfiles',
     
     # Bibliothèques tierces
@@ -35,9 +35,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # Doit être juste après SecurityMiddleware
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # Doit être avant CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -58,7 +58,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'django.template.context_processors.media', # Indispensable pour voir les images dans l'admin
+                'django.template.context_processors.media', 
             ],
         },
     },
@@ -67,7 +67,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'taxiprojet.wsgi.application'
 
 # Database
-# Note : SQLite sur Render est réinitialisé à chaque déploiement.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -85,30 +84,37 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'fr-fr'
-TIME_ZONE = 'Africa/Bamako' # Mis à jour pour le Mali
+TIME_ZONE = 'Africa/Bamako' 
 USE_I18N = True
 USE_TZ = True
 
-# --- CONFIGURATION DES FICHIERS STATIQUES (CSS, JS) ---
+# --- CONFIGURATION DES FICHIERS STATIQUES ---
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# Whitenoise pour servir les fichiers statiques sur Render
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# --- CONFIGURATION DES MÉDIAS (PHOTOS) ---
+# --- CONFIGURATION DES MÉDIAS ---
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Créer automatiquement le dossier media s'il n'existe pas localement
 if not os.path.exists(MEDIA_ROOT):
     os.makedirs(MEDIA_ROOT)
 
+# --- CONFIGURATION REST FRAMEWORK (AJOUTÉ POUR FIXER L'ERREUR 500) ---
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny', # Autorise l'app Flutter à appeler l'API
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+}
+
 # --- CONFIGURATION CORS ---
-CORS_ALLOW_ALL_ORIGINS = True # Permet à l'app Flutter de communiquer librement
+CORS_ALLOW_ALL_ORIGINS = True 
 CORS_ALLOW_CREDENTIALS = True
 
 # --- RÉGLAGES SUPPLÉMENTAIRES ---
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# Force Django à ajouter le slash final pour éviter les erreurs 301 avec Flutter
 APPEND_SLASH = True

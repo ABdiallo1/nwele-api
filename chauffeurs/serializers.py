@@ -2,8 +2,11 @@ from rest_framework import serializers
 from .models import Chauffeur
 
 class ChauffeurSerializer(serializers.ModelSerializer):
-    # Ce champ récupère la valeur de la méthode jours_restants() définie dans models.py
+    # On précise la source pour être sûr que DRF trouve la méthode dans le modèle
     jours_restants = serializers.ReadOnlyField()
+    # Utilise FileField ici aussi
+    photo_permis = serializers.FileField(required=False, allow_null=True)
+    photo_voiture = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = Chauffeur
@@ -22,9 +25,12 @@ class ChauffeurSerializer(serializers.ModelSerializer):
             'jours_restants', 
             'updated_at'
         ]
+        read_only_fields = ['id', 'updated_at', 'jours_restants']
 
-    # Optionnel : Validation pour s'assurer que le numéro de téléphone est au bon format
+    # Validation du numéro de téléphone
     def validate_telephone(self, value):
+        # Nettoyage des espaces éventuels
+        value = value.replace(" ", "")
         if not value.isdigit() and not value.startswith('+'):
             raise serializers.ValidationError("Le numéro de téléphone doit contenir uniquement des chiffres.")
         return value
