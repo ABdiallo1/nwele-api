@@ -51,6 +51,7 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
+                'django.template.context_processors.request', # Ajouté pour les médias
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -77,12 +78,15 @@ USE_TZ = True
 # --- CONFIGURATION DES FICHIERS STATIQUES ---
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# Utilisation de CompressedStaticFilesStorage (plus simple que Manifest)
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
-# --- CONFIGURATION DES MÉDIAS ---
+# --- CONFIGURATION DES MÉDIAS (PHOTOS PERMIS/AUTO) ---
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Créer automatiquement le dossier media s'il n'existe pas
+if not os.path.exists(MEDIA_ROOT):
+    os.makedirs(MEDIA_ROOT)
 
 # --- CONFIGURATION CORS ---
 CORS_ALLOW_ALL_ORIGINS = True
