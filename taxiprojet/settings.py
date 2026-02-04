@@ -8,12 +8,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-votre-cle-ici')
 
 # SECURITY WARNING: don't run with debug turned on in production!
+# Note: Sur Render, il est conseillé de mettre DEBUG = False en production
 DEBUG = True 
 
 ALLOWED_HOSTS = ['*', 'nwele-api.onrender.com', 'localhost', '127.0.0.1']
 
 # Sécurité pour les formulaires et les requêtes API sur Render
 CSRF_TRUSTED_ORIGINS = ['https://nwele-api.onrender.com']
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 INSTALLED_APPS = [
@@ -37,7 +39,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', 
+    'corsheaders.middleware.CorsMiddleware', # DOIT ÊTRE AVANT CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -67,6 +69,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'taxiprojet.wsgi.application'
 
 # Database
+# ATTENTION: Sur Render gratuit, db.sqlite3 est supprimé à chaque déploiement.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -100,10 +103,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 if not os.path.exists(MEDIA_ROOT):
     os.makedirs(MEDIA_ROOT)
 
-# --- CONFIGURATION REST FRAMEWORK (AJOUTÉ POUR FIXER L'ERREUR 500) ---
+# --- CONFIGURATION REST FRAMEWORK ---
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny', # Autorise l'app Flutter à appeler l'API
+        'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
@@ -114,6 +117,14 @@ REST_FRAMEWORK = {
 # --- CONFIGURATION CORS ---
 CORS_ALLOW_ALL_ORIGINS = True 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
 
 # --- RÉGLAGES SUPPLÉMENTAIRES ---
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

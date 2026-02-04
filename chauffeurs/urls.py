@@ -1,23 +1,29 @@
 from django.urls import path
-from . import views
+from .views import (
+    connexion_chauffeur, 
+    PaiementChauffeurView, 
+    PaytechCallbackView,
+    mettre_a_jour_chauffeur,
+    ChauffeurListView,
+    ChauffeurProfilView
+)
 
 urlpatterns = [
-    # Connexion
-    path('connexion-chauffeur/', views.connexion_chauffeur, name='connexion-chauffeur'),
+    # Route pour la connexion : /api/connexion-chauffeur/
+    path('connexion-chauffeur/', connexion_chauffeur, name='connexion'),
     
-    # API Chauffeurs
-    path('chauffeurs/', views.ChauffeurListView.as_view(), name='chauffeur-liste'),
-    path('chauffeurs/<int:pk>/', views.ChauffeurProfilView.as_view(), name='chauffeur-profil'),
+    # Route pour initier le paiement : /api/payer/ID/
+    path('payer/<int:chauffeur_id>/', PaiementChauffeurView, name='payer'),
     
-    # Mise à jour
-    path('mettre-a-jour-chauffeur/<int:pk>/', views.mettre_a_jour_chauffeur, name='maj-chauffeur'),
-
-    # Paiement (FONCTION : donc PAS de .as_view())
-    path('payer/<int:chauffeur_id>/', views.PaiementChauffeurView, name='chauffeur-payer'),
+    # Route pour le retour PayTech (IPN) : /api/paiement/callback/
+    path('paiement/callback/', PaytechCallbackView.as_view(), name='callback_paytech'),
     
-    # Callback (CLASSE : donc .as_view())
-    path('paiement/callback/', views.PaytechCallbackView.as_view(), name='paytech-callback'),
-
-    # Setup
-    path('setup-admin/', views.creer_admin_force, name='setup-admin'),
+    # Mise à jour GPS : /api/mettre-a-jour-chauffeur/ID/
+    path('mettre-a-jour-chauffeur/<int:pk>/', mettre_a_jour_chauffeur, name='update_gps'),
+    
+    # Liste des taxis pour les clients : /api/liste-taxis/
+    path('liste-taxis/', ChauffeurListView.as_view(), name='liste_taxis'),
+    
+    # Détails d'un profil : /api/chauffeurs/ID/
+    path('chauffeurs/<int:pk>/', ChauffeurProfilView.as_view(), name='profil_chauffeur'),
 ]
