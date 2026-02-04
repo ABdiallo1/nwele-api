@@ -25,25 +25,20 @@ def creer_admin_force(request):
 # --- 2. CONNEXION DU CHAUFFEUR ---
 @api_view(['POST'])
 def connexion_chauffeur(request):
-    # .strip() nettoie les espaces invisibles qui font souvent échouer la recherche
     telephone = str(request.data.get('telephone', '')).strip()
-    print(f"--- Tentative de connexion : [{telephone}] ---")
-
     try:
         chauffeur = Chauffeur.objects.get(telephone=telephone)
         serializer = ChauffeurSerializer(chauffeur, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
-
     except Chauffeur.DoesNotExist:
         return Response(
             {"error": "Numéro inconnu. Vérifiez votre saisie ou contactez l'admin."}, 
             status=status.HTTP_404_NOT_FOUND
         )
     except Exception as e:
-        print(f"🔥 Erreur Connexion: {e}")
         return Response({"error": "Erreur serveur"}, status=500)
 
-# --- 3. PAIEMENT PAYTECH ---
+# --- 3. PAIEMENT PAYTECH (MODIFIÉ POUR REDIRECTION APP) ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
@@ -51,7 +46,6 @@ def PaiementChauffeurView(request, chauffeur_id):
     PAYTECH_URL = "https://paytech.sn/api/payment/request-payment"
     ref_command = f"PAY-{chauffeur.id}-{int(timezone.now().timestamp())}"
     
-    # Utilise tes clés d'environnement Render ou les valeurs par défaut
     api_key = os.getenv("PAYTECH_API_KEY", "VOTRE_CLE")
     api_secret = os.getenv("PAYTECH_API_SECRET", "VOTRE_SECRET")
 
@@ -62,7 +56,9 @@ def PaiementChauffeurView(request, chauffeur_id):
         "ref_command": ref_command,
         "command_name": f"Abonnement - {chauffeur.nom_complet}",
         "env": "test", 
-        "success_url": "https://nwele-api.onrender.com/admin/",
+        # --- LA MODIFICATION EST ICI ---
+        # "nwele://success" indique à Android/iOS de rouvrir l'app
+        "success_url": "nwele://success", 
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/", 
     }
     
@@ -79,9 +75,9 @@ def PaiementChauffeurView(request, chauffeur_id):
         
         if res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
-        return Response({"error": "Détails PayTech invalides", "details": res_data}, status=400)
+        return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
     except Exception as e:
-        return Response({"error": f"Connexion PayTech échouée: {e}"}, status=500)
+        return Response({"error": f"Erreur de connexion: {e}"}, status=500)
 
 # --- 4. CALLBACK (IPN) ---
 @method_decorator(csrf_exempt, name='dispatch')
@@ -95,8 +91,6 @@ class PaytechCallbackView(APIView):
                 parts = ref_command.split('-')
                 chauffeur_id = parts[1]
                 chauffeur = Chauffeur.objects.get(id=chauffeur_id)
-                
-                # Appel de la méthode du modèle
                 chauffeur.enregistrer_paiement() 
                 return Response({"status": "success"}, status=200)
             except Exception as e:
@@ -104,7 +98,7 @@ class PaytechCallbackView(APIView):
                 return Response({"status": "error"}, status=400)
         return Response({"status": "no_ref"}, status=400)
 
-# --- 5. GPS ET LISTE (POUR L'APP CLIENT) ---
+# --- 5. GPS ET LISTE ---
 @api_view(['PATCH'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -112,18 +106,16 @@ def mettre_a_jour_chauffeur(request, pk):
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=400)
 
 class ChauffeurListView(APIView):
     def get(self, request):
         try:
-            # On ne montre que ceux qui sont à jour ET qui ont activé le bouton "En ligne"
             chauffeurs = Chauffeur.objects.filter(est_en_ligne=True, est_actif=True)
             serializer = ChauffeurSerializer(chauffeurs, many=True, context={'request': request})
             return Response(serializer.data)
         except Exception as e:
-            print(f"🔥 Erreur Liste: {e}")
-            return Response([], status=200) # Renvoie liste vide au lieu de 500
+            return Response([], status=200)
 
 class ChauffeurProfilView(APIView):
     def get(self, request, pk):
