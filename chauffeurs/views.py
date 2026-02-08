@@ -17,16 +17,16 @@ def PaiementChauffeurView(request, chauffeur_id):
     api_key = os.getenv("PAYTECH_API_KEY", "VOTRE_CLE_REELLE")
     api_secret = os.getenv("PAYTECH_API_SECRET", "VOTRE_SECRET_REEL")
 
+    # Dans ton views.py Django (fonction de paiement)
     payload = {
-        "item_name": "Activation Compte N'wele",
-        "item_price": "10000",
-        "currency": "XOF",
-        "ref_command": ref_command,
-        "command_name": f"Abonnement - {chauffeur.nom_complet}",
-        "env": "test", # Mets 'prod' pour les vrais paiements
-        "success_url": "nwele://success", 
-        "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
-        "custom_field": str(chauffeur.id) # Sécurité pour retrouver le chauffeur à l'IPN
+    "item_name": "Abonnement N'WELE",
+    "item_price": "10000",
+    "currency": "XOF",
+    "ref_command": ref_command,
+    "env": "test", # Assure-toi que c'est bien 'test' si tu n'as pas de clés de prod
+    "customer_phone": chauffeur.telephone, # INDISPENSABLE pour éviter l'erreur (pho)
+    "success_url": "https://nwele-api.onrender.com/success/",
+    "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
     }
     
     headers = {
