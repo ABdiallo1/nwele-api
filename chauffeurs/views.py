@@ -36,36 +36,46 @@ def connexion_chauffeur(request):
         return Response({"error": "Numéro inconnu."}, status=status.HTTP_404_NOT_FOUND)
 
 # --- 3. PAIEMENT ---
+# --- PAIEMENT PAYTECH ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
+    
     PAYTECH_URL = "https://paytech.sn/api/payment/request-payment"
     ref_command = f"PAY-{chauffeur.id}-{int(timezone.now().timestamp())}"
     
+    # REMPLACE BIEN PAR TES VRAIES CLES ICI OU DANS RENDER
+    api_key = os.getenv("PAYTECH_API_KEY", "VOTRE_CLE_REELLE")
+    api_secret = os.getenv("PAYTECH_API_SECRET", "VOTRE_SECRET_REEL")
+
     payload = {
-        "item_name": "Abonnement Taxi N'WELE",
+        "item_name": "Abonnement N'wele",
         "item_price": "10000",
         "currency": "XOF",
         "ref_command": ref_command,
         "command_name": f"Abonnement - {chauffeur.nom_complet}",
-        "env": "test", # Change en 'prod' quand tu seras prêt
+        "env": "test", # Change en 'prod' une fois que ça marche
         "success_url": "nwele://success", 
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/", 
     }
     
     headers = {
-        "API_KEY": os.getenv("PAYTECH_API_KEY", "TON_API_KEY"),
-        "API_SECRET": os.getenv("PAYTECH_API_SECRET", "TON_API_SECRET")
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "API_KEY": api_key,
+        "API_SECRET": api_secret
     }
 
     try:
         response = requests.post(PAYTECH_URL, json=payload, headers=headers, timeout=10)
         res_data = response.json()
+        
         if res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
-        return Response({"error": "Erreur PayTech"}, status=400)
-    except:
-        return Response({"error": "Serveur PayTech injoignable"}, status=500)
+        # Si erreur, on renvoie le détail pour debugger
+        return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
+    except Exception as e:
+        return Response({"error": f"Connexion échouée: {e}"}, status=500)
 
 # --- 4. CALLBACK (L'IPN qui valide le paiement) ---
 @method_decorator(csrf_exempt, name='dispatch')
