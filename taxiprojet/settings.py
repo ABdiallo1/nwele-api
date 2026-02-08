@@ -1,23 +1,18 @@
 from pathlib import Path
 import os
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# Sécurité
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-votre-cle-ici')
-
-# SECURITY WARNING: don't run with debug turned on in production!
-# Note: Sur Render, il est conseillé de mettre DEBUG = False en production
-DEBUG = True 
+DEBUG = True # À mettre sur False pour la mise en production finale
 
 ALLOWED_HOSTS = ['*', 'nwele-api.onrender.com', 'localhost', '127.0.0.1']
 
-# Sécurité pour les formulaires et les requêtes API sur Render
 CSRF_TRUSTED_ORIGINS = ['https://nwele-api.onrender.com']
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Application definition
+# Applications
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -27,19 +22,18 @@ INSTALLED_APPS = [
     'whitenoise.runserver_nostatic',  
     'django.contrib.staticfiles',
     
-    # Bibliothèques tierces
     'rest_framework',
     'corsheaders',
     
-    # Tes applications
     'chauffeurs',
 ]
 
+# Middleware (L'ordre est crucial)
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # DOIT ÊTRE AVANT CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -68,8 +62,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'taxiprojet.wsgi.application'
 
-# Database
-# ATTENTION: Sur Render gratuit, db.sqlite3 est supprimé à chaque déploiement.
+# Database (SQLite : les données seront perdues au redémarrage sur Render Free)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -77,33 +70,24 @@ DATABASES = {
     }
 }
 
-# Password validation
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-]
-
-# Internationalization
+# Internationalisation
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Bamako' 
 USE_I18N = True
 USE_TZ = True
 
-# --- CONFIGURATION DES FICHIERS STATIQUES ---
+# Fichiers statiques et Médias
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# --- CONFIGURATION DES MÉDIAS ---
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 if not os.path.exists(MEDIA_ROOT):
     os.makedirs(MEDIA_ROOT)
 
-# --- CONFIGURATION REST FRAMEWORK ---
+# REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
@@ -114,18 +98,9 @@ REST_FRAMEWORK = {
     ],
 }
 
-# --- CONFIGURATION CORS ---
+# CORS
 CORS_ALLOW_ALL_ORIGINS = True 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_METHODS = [
-    "DELETE",
-    "GET",
-    "OPTIONS",
-    "PATCH",
-    "POST",
-    "PUT",
-]
 
-# --- RÉGLAGES SUPPLÉMENTAIRES ---
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 APPEND_SLASH = True

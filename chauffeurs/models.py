@@ -34,10 +34,16 @@ class Chauffeur(models.Model):
 
     @property
     def jours_restants(self):
-        """Calcule le nombre de jours restants sans conflit avec est_actif"""
-        if self.date_expiration and self.date_expiration > timezone.now():
-            diff = self.date_expiration - timezone.now()
-            return diff.days
+        """Calcule le nombre de jours restants et met à jour le statut si expiré"""
+        if self.date_expiration:
+            if self.date_expiration > timezone.now():
+                diff = self.date_expiration - timezone.now()
+                return diff.days
+            else:
+                # Si expiré, on s'assure que est_actif passe à False
+                if self.est_actif:
+                    self.est_actif = False
+                    self.save()
         return 0
 
     def __str__(self):
@@ -45,6 +51,7 @@ class Chauffeur(models.Model):
 
 @receiver(post_migrate)
 def gestion_admin_automatique(sender, **kwargs):
+    # 'chauffeurs' doit correspondre au nom de ton application dans apps.py
     if sender.name == 'chauffeurs':
         username, password, email = 'admin', 'Parser1234', 'admin@nwele.com'
         try:
