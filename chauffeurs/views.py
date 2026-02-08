@@ -1,4 +1,5 @@
-import os, requests
+import os
+import requests
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.response import Response
@@ -7,25 +8,28 @@ from .models import Chauffeur
 
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
+    # 1. Récupération du chauffeur
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     
-    # NETTOYAGE DU TELEPHONE (Enlever les espaces pour éviter l'erreur pho)
-    telephone_propre = chauffeur.telephone.replace(" ", "").replace(".", "").replace("-", "")
+    # 2. Nettoyage du numéro (PayTech refuse tout sauf les chiffres)
+    num_propre = "".join(filter(str.isdigit, str(chauffeur.telephone)))
     
+    # 3. Configuration PayTech
     PAYTECH_URL = "https://paytech.sn/api/payment/request-payment"
     ref_command = f"PAY-{chauffeur.id}-{int(timezone.now().timestamp())}"
     
-    api_key = os.getenv("PAYTECH_API_KEY", "TA_CLE_API_ICI")
-    api_secret = os.getenv("PAYTECH_API_SECRET", "TON_SECRET_ICI")
+    # Récupération sécurisée des clés depuis Render
+    api_key = os.getenv("PAYTECH_API_KEY", "VOTRE_CLE_REELLE")
+    api_secret = os.getenv("PAYTECH_API_SECRET", "VOTRE_SECRET_REEL")
 
     payload = {
-        "item_name": "Abonnement N'WELE",
+        "item_name": "Abonnement Taxi N'WELE",
         "item_price": "10000",
         "currency": "XOF",
         "ref_command": ref_command,
-        "command_name": f"Abonnement - {chauffeur.nom_complet}",
-        "env": "test", 
-        "customer_phone": telephone_propre, 
+        "command_name": f"Paiement Chauffeur: {chauffeur.nom_complet}",
+        "env": "test", # Changez en 'prod' quand tout sera ok
+        "customer_phone": num_propre,
         "success_url": "https://nwele-api.onrender.com/success/",
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
     }
@@ -38,22 +42,19 @@ def PaiementChauffeurView(request, chauffeur_id):
     }
 
     try:
-        response = requests.post(PAYTECH_URL, json=payload, headers=headers, timeout=10)
+        print(f"Tentative de paiement pour {num_propre}...")
+        response = requests.post(PAYTECH_URL, json=payload, headers=headers, timeout=15)
         res_data = response.json()
         
-        # Vérification très précise du succès
         if response.status_code == 200 and res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
         else:
-            # ICI on voit l'erreur exacte dans les logs Render
-            print(f"--- ERREUR PAYTECH ---")
-            print(f"Payload envoyé: {payload}")
-            print(f"Réponse reçue: {res_data}")
+            print(f"Erreur PayTech : {res_data}")
             return Response({
-                "error": "PayTech a refusé la requête",
+                "error": "Le service de paiement a refusé la requête",
                 "details": res_data
             }, status=400)
-
+            
     except Exception as e:
-        print(f"--- ERREUR CRITIQUE --- : {str(e)}")
-        return Response({"error": f"Erreur serveur: {str(e)}"}, status=500)
+        print(f"Erreur Serveur : {str(e)}")
+        return Response({"error": "Erreur interne lors de l'appel PayTech"}, status=500)
