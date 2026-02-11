@@ -23,7 +23,7 @@ class Chauffeur(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        # Nettoyage automatique du téléphone avant sauvegarde
+        # Nettoyage automatique : on ne garde que les chiffres
         self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
         super().save(*args, **kwargs)
 
@@ -51,9 +51,9 @@ class Chauffeur(models.Model):
     def __str__(self):
         return f"{self.nom_complet} - {self.telephone}"
 
-# SIGNAL CORRIGÉ : On retire la condition sender.name pour être sûr que ça s'exécute
 @receiver(post_migrate)
 def gestion_admin_automatique(sender, **kwargs):
+    # Création automatique de l'admin au déploiement
     if not User.objects.filter(username='admin').exists():
         User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
-        print("✅ Super-utilisateur 'admin' créé (Pass: Parser1234)")
+        print("✅ Super-utilisateur créé : admin / Parser1234")

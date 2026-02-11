@@ -1,11 +1,7 @@
 from django.urls import path
 from .views import (
-    connexion_chauffeur, 
-    PaiementChauffeurView, 
-    PaytechCallbackView,
-    mettre_a_jour_chauffeur,
-    ChauffeurListView,
-    ChauffeurProfilView
+    connexion_chauffeur, PaiementChauffeurView, PaytechCallbackView,
+    mettre_a_jour_chauffeur, ChauffeurListView, ChauffeurProfilView
 )
 
 urlpatterns = [
