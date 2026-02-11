@@ -3,13 +3,13 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-cle-temporaire')
-DEBUG = True 
+DEBUG = False # PASSER SUR FALSE POUR RENDER
 
 ALLOWED_HOSTS = ['*']
 CSRF_TRUSTED_ORIGINS = ['https://nwele-api.onrender.com']
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    'django.contrib.admin', # DOIT ETRE EN PREMIER
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -23,7 +23,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # DOIT ETRE ICI
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -34,6 +34,24 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'taxiprojet.urls'
+
+# AJOUTER CECI POUR FIXER L'ERREUR ADMIN/LOGIN.HTML
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
 WSGI_APPLICATION = 'taxiprojet.wsgi.application'
 
 DATABASES = {

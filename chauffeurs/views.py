@@ -6,6 +6,8 @@ from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 from .models import Chauffeur
 from django.http import HttpResponse
+# IMPORT MANQUANT CORRIGÉ ICI :
+from django.contrib.auth.models import User 
 
 @api_view(['POST'])
 def connexion_chauffeur(request):
@@ -59,6 +61,16 @@ def PaiementChauffeurView(request, chauffeur_id):
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
+# URL DE SECOURS POUR L'ADMIN
+def creer_admin_force(request):
+    try:
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
+            return HttpResponse("✅ Admin créé avec succès ! Login: admin / Pass: Parser1234")
+        return HttpResponse("ℹ️ L'admin existe déjà.")
+    except Exception as e:
+        return HttpResponse(f"❌ Erreur : {str(e)}")
+
 class PaytechCallbackView(APIView):
     def post(self, request):
         return Response({"status": "ok"}, status=200)
@@ -66,12 +78,6 @@ class PaytechCallbackView(APIView):
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
     return Response({"status": "position mise à jour"})
-
-def creer_admin_force(request):
-    if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
-        return HttpResponse("Admin créé avec succès !")
-    return HttpResponse("L'admin existe déjà.")
 
 class ChauffeurListView(APIView):
     def get(self, request):
