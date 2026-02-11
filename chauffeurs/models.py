@@ -22,8 +22,12 @@ class Chauffeur(models.Model):
     longitude = models.FloatField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        # Nettoyage automatique du téléphone avant sauvegarde
+        self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
+        super().save(*args, **kwargs)
+
     def enregistrer_paiement(self):
-        """Active ou prolonge l'abonnement pour 30 jours"""
         maintenant = timezone.now()
         if self.date_expiration and self.date_expiration > maintenant:
             self.date_expiration += timedelta(days=30)
@@ -34,13 +38,11 @@ class Chauffeur(models.Model):
 
     @property
     def jours_restants(self):
-        """Calcule le nombre de jours restants et met à jour le statut si expiré"""
         if self.date_expiration:
             if self.date_expiration > timezone.now():
                 diff = self.date_expiration - timezone.now()
                 return diff.days
             else:
-                # Si expiré, on s'assure que est_actif passe à False
                 if self.est_actif:
                     self.est_actif = False
                     self.save()
@@ -49,14 +51,9 @@ class Chauffeur(models.Model):
     def __str__(self):
         return f"{self.nom_complet} - {self.telephone}"
 
+# SIGNAL CORRIGÉ : On retire la condition sender.name pour être sûr que ça s'exécute
 @receiver(post_migrate)
 def gestion_admin_automatique(sender, **kwargs):
-    # 'chauffeurs' doit correspondre au nom de ton application dans apps.py
-    if sender.name == 'chauffeurs':
-        username, password, email = 'admin', 'Parser1234', 'admin@nwele.com'
-        try:
-            if not User.objects.filter(username=username).exists():
-                User.objects.create_superuser(username, email, password)
-                print(f"✅ Super-utilisateur créé")
-        except Exception as e:
-            print(f"⚠️ Erreur setup admin : {e}")
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
+        print("✅ Super-utilisateur 'admin' créé (Pass: Parser1234)")
