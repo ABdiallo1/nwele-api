@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from .models import Chauffeur
 from rest_framework import status
 
-# --- CONNEXION ---
+# --- 1. CONNEXION ---
 @api_view(['POST'])
 def connexion_chauffeur(request):
     telephone = request.data.get('telephone', '').strip()
@@ -21,9 +21,9 @@ def connexion_chauffeur(request):
             "jours_restants": chauffeur.jours_restants
         })
     except Chauffeur.DoesNotExist:
-        return Response({"error": "Chauffeur non trouvé"}, status=404)
+        return Response({"error": "Chauffeur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
 
-# --- MISE À JOUR GPS ---
+# --- 2. MISE À JOUR GPS ---
 @api_view(['POST', 'PATCH'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -38,7 +38,7 @@ def mettre_a_jour_chauffeur(request, pk):
         "jours_restants": chauffeur.jours_restants
     })
 
-# --- PROFIL (CLASSE) ---
+# --- 3. PROFIL (Classe) ---
 class ChauffeurProfilView(APIView):
     def get(self, request, pk):
         chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -52,30 +52,20 @@ class ChauffeurProfilView(APIView):
             "est_en_ligne": chauffeur.est_en_ligne
         })
 
-# --- LISTE POUR LA CARTE (CLASSE) ---
+# --- 4. LISTE TAXIS (Classe) ---
 class ChauffeurListView(APIView):
     def get(self, request):
         chauffeurs = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
         data = [{"id": c.id, "nom": c.nom_complet, "lat": c.latitude, "lng": c.longitude} for c in chauffeurs]
         return Response(data)
 
-# --- PAIEMENT ---
+# --- 5. PAIEMENT ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
-    chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
-    # Simulation PayTech (remplace les clés par tes vraies clés)
-    payload = {
-        "item_name": "Abonnement N'WELE",
-        "item_price": "10000",
-        "currency": "XOF",
-        "ref_command": f"PAY-{chauffeur.id}-{os.urandom(2).hex()}",
-        "env": "test",
-        "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
-    }
-    # Logique requests.post ici...
-    return Response({"url": "https://paytech.sn/payment/checkout/xyz"}) # Exemple
+    # Logique simplifiée pour ne pas bloquer le serveur
+    return Response({"url": "https://paytech.sn/payment/checkout/example"})
 
-# --- CALLBACK (CLASSE) ---
+# --- 6. CALLBACK PAIEMENT (Classe) ---
 class PaytechCallbackView(APIView):
     def post(self, request):
         ref_command = request.data.get('ref_command')
@@ -84,14 +74,16 @@ class PaytechCallbackView(APIView):
                 chauffeur_id = ref_command.split('-')[1]
                 chauffeur = Chauffeur.objects.get(id=chauffeur_id)
                 chauffeur.enregistrer_paiement()
-                return Response({"status": "ok"})
-            except: pass
-        return Response({"error": "invalid"}, status=400)
+                return Response({"status": "Success"}, status=200)
+            except Exception as e:
+                return Response({"error": str(e)}, status=400)
+        return Response({"error": "Invalid data"}, status=400)
 
-# --- UTILITAIRE ---
+# --- 7. UTILITAIRE ADMIN ---
 def creer_admin_force(request):
     from django.contrib.auth.models import User
+    from django.http import HttpResponse
     if not User.objects.filter(username="admin").exists():
         User.objects.create_superuser("admin", "admin@test.com", "admin123")
-        return Response("Admin créé")
-    return Response("Déjà existant")
+        return HttpResponse("Compte admin créé : admin / admin123")
+    return HttpResponse("L'admin existe déjà.")
