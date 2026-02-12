@@ -1,6 +1,6 @@
 import os, requests, json, time
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Chauffeur
@@ -17,7 +17,7 @@ def connexion_chauffeur(request):
             "est_actif": chauffeur.est_actif,
             "jours_restants": chauffeur.jours_restants
         })
-    except:
+    except Chauffeur.DoesNotExist:
         return Response({"error": "Chauffeur non trouvé"}, status=404)
 
 @api_view(['GET'])
@@ -45,11 +45,11 @@ def mettre_a_jour_chauffeur(request, pk):
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     
-    # 1. Tes clés API (Vérifie bien qu'elles sont correctes dans ton compte PayTech)
-    API_KEY = "TA_CLE_API" 
-    API_SECRET = "TON_SECRET_API"
+    # --- REMPLACE CES CLÉS PAR TES VRAIES CLÉS PAYTECH ---
+    API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2" 
+    API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
+    # ---------------------------------------------------
     
-    # 2. Construction de la requête
     url = "https://paytech.sn/api/payment/request-payment"
     headers = {
         "Accept": "application/json",
@@ -58,15 +58,13 @@ def PaiementChauffeurView(request, chauffeur_id):
         "API_SECRET": API_SECRET,
     }
     
-    # 3. Le Payload (Le secret est ici)
     payload = {
         "item_name": "Abonnement Taxi N'WELE",
         "item_price": "10000",
         "currency": "XOF",
-        # On force une référence unique à chaque seconde pour éviter l'erreur "Expiré"
         "ref_command": f"NWELE-{chauffeur.id}-{int(time.time())}", 
-        "command_name": f"Paiement de {chauffeur.nom_complet}",
-        "env": "test", # Change en 'live' plus tard
+        "command_name": f"Abonnement de {chauffeur.nom_complet}",
+        "env": "test", # Passe à 'live' quand tu seras prêt
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
         "success_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
         "cancel_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
@@ -76,15 +74,15 @@ def PaiementChauffeurView(request, chauffeur_id):
         response = requests.post(url, json=payload, headers=headers)
         res_data = response.json()
         
-        # Si PayTech renvoie un succès, on donne l'URL à Flutter
-        if res_data.get('success') == 1:
+        if response.status_code == 200 and res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
         else:
-            # Si PayTech renvoie une erreur (clés invalides, etc.)
-            return Response({"error": res_data.get('errors', 'Erreur PayTech')}, status=400)
+            # On renvoie l'erreur précise de PayTech pour débugger
+            error_msg = res_data.get('errors', 'Erreur de configuration PayTech')
+            return Response({"error": error_msg}, status=400)
             
     except Exception as e:
-        return Response({"error": str(e)}, status=500)
+        return Response({"error": f"Erreur serveur: {str(e)}"}, status=500)
 
 @api_view(['POST'])
 def PaytechCallbackView(request):
@@ -93,20 +91,21 @@ def PaytechCallbackView(request):
         try:
             c_id = ref.split('-')[1]
             chauffeur = Chauffeur.objects.get(id=c_id)
-            chauffeur.enregistrer_paiement()
+            chauffeur.enregistrer_paiement() # Vérifie que cette méthode existe dans ton model
             return Response({"status": "ok"})
-        except: pass
+        except Exception:
+            pass
     return Response({"status": "error"}, status=400)
 
 @api_view(['GET'])
 def ChauffeurListView(request):
     chauffeurs = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
-    data = [{"id": c.id, "lat": c.latitude, "lng": c.longitude} for c in chauffeurs]
+    data = [{"id": c.id, "lat": c.latitude, "lng": c.longitude, "nom": c.nom_complet} for c in chauffeurs]
     return Response(data)
 
 def creer_admin_force(request):
     from django.contrib.auth.models import User
     if not User.objects.filter(username="admin").exists():
         User.objects.create_superuser("admin", "admin@test.com", "admin123")
-        return HttpResponse("Admin créé")
-    return HttpResponse("Admin existe déjà")
+        return HttpResponse("Admin créé avec succès (Login: admin / Pass: admin123)")
+    return HttpResponse("L'admin existe déjà.")
