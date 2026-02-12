@@ -1,13 +1,13 @@
 import os, requests, json
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from datetime import timedelta
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 from .models import Chauffeur
 from django.http import HttpResponse
-# IMPORT MANQUANT CORRIGÉ ICI :
-from django.contrib.auth.models import User 
+from django.contrib.auth.models import User
 
 @api_view(['POST'])
 def connexion_chauffeur(request):
@@ -18,10 +18,24 @@ def connexion_chauffeur(request):
             "id": chauffeur.id,
             "nom_complet": chauffeur.nom_complet,
             "telephone": chauffeur.telephone,
-            "est_actif": chauffeur.est_actif
+            "est_actif": chauffeur.est_actif,
+            "date_expiration": chauffeur.date_expiration.isoformat() if chauffeur.date_expiration else None
         }, status=200)
     except Chauffeur.DoesNotExist:
         return Response({"error": "Chauffeur non trouvé"}, status=404)
+
+@api_view(['POST', 'PATCH'])
+def mettre_a_jour_chauffeur(request, pk):
+    chauffeur = get_object_or_404(Chauffeur, pk=pk)
+    data = request.data
+    
+    # Mise à jour de la position et du statut en ligne
+    if 'latitude' in data: chauffeur.latitude = data['latitude']
+    if 'longitude' in data: chauffeur.longitude = data['longitude']
+    if 'est_en_ligne' in data: chauffeur.est_en_ligne = data['est_en_ligne']
+    
+    chauffeur.save()
+    return Response({"status": "Success", "est_en_ligne": chauffeur.est_en_ligne})
 
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
@@ -46,11 +60,7 @@ def PaiementChauffeurView(request, chauffeur_id):
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
     }
     
-    headers = {
-        "Content-Type": "application/json",
-        "API_KEY": api_key,
-        "API_SECRET": api_secret
-    }
+    headers = {"Content-Type": "application/json", "API_KEY": api_key, "API_SECRET": api_secret}
 
     try:
         response = requests.post(PAYTECH_URL, json=payload, headers=headers, timeout=15)
@@ -61,29 +71,45 @@ def PaiementChauffeurView(request, chauffeur_id):
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
-# URL DE SECOURS POUR L'ADMIN
-def creer_admin_force(request):
-    try:
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
-            return HttpResponse("✅ Admin créé avec succès ! Login: admin / Pass: Parser1234")
-        return HttpResponse("ℹ️ L'admin existe déjà.")
-    except Exception as e:
-        return HttpResponse(f"❌ Erreur : {str(e)}")
-
 class PaytechCallbackView(APIView):
     def post(self, request):
-        return Response({"status": "ok"}, status=200)
-
-@api_view(['POST'])
-def mettre_a_jour_chauffeur(request, pk):
-    return Response({"status": "position mise à jour"})
-
-class ChauffeurListView(APIView):
-    def get(self, request):
-        return Response([])
+        # PayTech envoie la ref_command (ex: PAY-5-1739...)
+        ref_command = request.data.get('ref_command')
+        if ref_command:
+            try:
+                # Extraire l'ID du chauffeur depuis la référence
+                chauffeur_id = ref_command.split('-')[1]
+                chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+                
+                # Activer le chauffeur pour 30 jours
+                chauffeur.est_actif = True
+                chauffeur.date_expiration = timezone.now() + timedelta(days=30)
+                chauffeur.save()
+                return Response({"status": "Abonnement activé"}, status=200)
+            except Exception as e:
+                return Response({"error": str(e)}, status=400)
+        return Response({"error": "Référence manquante"}, status=400)
 
 class ChauffeurProfilView(APIView):
     def get(self, request, pk):
         chauffeur = get_object_or_404(Chauffeur, pk=pk)
-        return Response({"id": chauffeur.id, "nom": chauffeur.nom_complet})
+        return Response({
+            "id": chauffeur.id,
+            "nom_complet": chauffeur.nom_complet,
+            "est_actif": chauffeur.est_actif,
+            "est_en_ligne": chauffeur.est_en_ligne,
+            "date_expiration": chauffeur.date_expiration
+        })
+
+def creer_admin_force(request):
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
+        return HttpResponse("✅ Admin créé !")
+    return HttpResponse("ℹ️ Déjà existant.")
+
+class ChauffeurListView(APIView):
+    def get(self, request):
+        # Utile pour la carte côté client
+        chauffeurs = Chauffeur.objects.filter(est_en_ligne=True, est_actif=True)
+        data = [{"id": c.id, "nom": c.nom_complet, "lat": c.latitude, "lng": c.longitude} for c in chauffeurs]
+        return Response(data)
