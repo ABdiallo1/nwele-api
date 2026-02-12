@@ -1,115 +1,141 @@
 import os, requests, json
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
-from datetime import timedelta
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
+from rest_framework import generics
 from .models import Chauffeur
-from django.http import HttpResponse
-from django.contrib.auth.models import User
+from rest_framework import status
 
+# --- 1. CONNEXION CHAUFFEUR ---
 @api_view(['POST'])
 def connexion_chauffeur(request):
-    telephone = request.data.get('telephone', '').replace(" ", "")
+    telephone = request.data.get('telephone', '').strip()
+    if not telephone:
+        return Response({"error": "Téléphone requis"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Nettoyage du numéro pour correspondre au format stocké (chiffres uniquement)
+    telephone_clean = "".join(filter(str.isdigit, telephone))
+    
     try:
-        chauffeur = Chauffeur.objects.get(telephone=telephone)
+        chauffeur = Chauffeur.objects.get(telephone=telephone_clean)
         return Response({
             "id": chauffeur.id,
             "nom_complet": chauffeur.nom_complet,
             "telephone": chauffeur.telephone,
             "est_actif": chauffeur.est_actif,
-            "date_expiration": chauffeur.date_expiration.isoformat() if chauffeur.date_expiration else None
-        }, status=200)
+            "jours_restants": chauffeur.jours_restants
+        }, status=status.HTTP_200_OK)
     except Chauffeur.DoesNotExist:
-        return Response({"error": "Chauffeur non trouvé"}, status=404)
+        return Response({"error": "Chauffeur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
 
+
+# --- 2. MISE À JOUR GPS ET STATUT ---
 @api_view(['POST', 'PATCH'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
     data = request.data
     
-    # Mise à jour de la position et du statut en ligne
-    if 'latitude' in data: chauffeur.latitude = data['latitude']
-    if 'longitude' in data: chauffeur.longitude = data['longitude']
-    if 'est_en_ligne' in data: chauffeur.est_en_ligne = data['est_en_ligne']
+    # Mise à jour sélective
+    if 'latitude' in data: chauffeur.latitude = data.get('latitude')
+    if 'longitude' in data: chauffeur.longitude = data.get('longitude')
+    if 'est_en_ligne' in data: chauffeur.est_en_ligne = data.get('est_en_ligne')
     
     chauffeur.save()
-    return Response({"status": "Success", "est_en_ligne": chauffeur.est_en_ligne})
+    return Response({
+        "status": "success",
+        "est_actif": chauffeur.est_actif,
+        "jours_restants": chauffeur.jours_restants,
+        "est_en_ligne": chauffeur.est_en_ligne
+    })
 
-@api_view(['POST'])
-def PaiementChauffeurView(request, chauffeur_id):
-    chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
-    num_propre = "".join(filter(str.isdigit, str(chauffeur.telephone)))
-    
-    PAYTECH_URL = "https://paytech.sn/api/payment/request-payment"
-    ref_command = f"PAY-{chauffeur.id}-{int(timezone.now().timestamp())}"
-    
-    api_key = os.getenv("PAYTECH_API_KEY", "VOTRE_CLE")
-    api_secret = os.getenv("PAYTECH_API_SECRET", "VOTRE_SECRET")
 
-    payload = {
-        "item_name": "Abonnement N'WELE",
-        "item_price": "10000",
-        "currency": "XOF",
-        "ref_command": ref_command,
-        "command_name": f"Paiement {chauffeur.nom_complet}",
-        "env": "test", 
-        "customer_phone": num_propre,
-        "success_url": "https://nwele-api.onrender.com/success/",
-        "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
-    }
-    
-    headers = {"Content-Type": "application/json", "API_KEY": api_key, "API_SECRET": api_secret}
-
-    try:
-        response = requests.post(PAYTECH_URL, json=payload, headers=headers, timeout=15)
-        res_data = response.json()
-        if res_data.get('success') == 1:
-            return Response({"url": res_data['redirect_url']}, status=200)
-        return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
-
-class PaytechCallbackView(APIView):
-    def post(self, request):
-        # PayTech envoie la ref_command (ex: PAY-5-1739...)
-        ref_command = request.data.get('ref_command')
-        if ref_command:
-            try:
-                # Extraire l'ID du chauffeur depuis la référence
-                chauffeur_id = ref_command.split('-')[1]
-                chauffeur = Chauffeur.objects.get(id=chauffeur_id)
-                
-                # Activer le chauffeur pour 30 jours
-                chauffeur.est_actif = True
-                chauffeur.date_expiration = timezone.now() + timedelta(days=30)
-                chauffeur.save()
-                return Response({"status": "Abonnement activé"}, status=200)
-            except Exception as e:
-                return Response({"error": str(e)}, status=400)
-        return Response({"error": "Référence manquante"}, status=400)
-
+# --- 3. PROFIL DÉTAILLÉ (Utilisé par Flutter) ---
 class ChauffeurProfilView(APIView):
     def get(self, request, pk):
         chauffeur = get_object_or_404(Chauffeur, pk=pk)
         return Response({
             "id": chauffeur.id,
             "nom_complet": chauffeur.nom_complet,
+            "telephone": chauffeur.telephone,
             "est_actif": chauffeur.est_actif,
+            "jours_restants": chauffeur.jours_restants,
+            "date_expiration": chauffeur.date_expiration,
             "est_en_ligne": chauffeur.est_en_ligne,
-            "date_expiration": chauffeur.date_expiration
+            "plaque_immatriculation": chauffeur.plaque_immatriculation
         })
 
-def creer_admin_force(request):
-    if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
-        return HttpResponse("✅ Admin créé !")
-    return HttpResponse("ℹ️ Déjà existant.")
 
+# --- 4. LISTE DES TAXIS ACTIFS (Pour la carte Client) ---
 class ChauffeurListView(APIView):
     def get(self, request):
-        # Utile pour la carte côté client
-        chauffeurs = Chauffeur.objects.filter(est_en_ligne=True, est_actif=True)
-        data = [{"id": c.id, "nom": c.nom_complet, "lat": c.latitude, "lng": c.longitude} for c in chauffeurs]
+        # On ne montre que les chauffeurs qui ont un abonnement valide ET qui sont en ligne
+        chauffeurs = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
+        data = []
+        for c in chauffeurs:
+            data.append({
+                "id": c.id,
+                "nom": c.nom_complet,
+                "lat": c.latitude,
+                "lng": c.longitude,
+                "telephone": c.telephone
+            })
         return Response(data)
+
+
+# --- 5. INITIALISATION PAIEMENT PAYTECH ---
+@api_view(['POST'])
+def PaiementChauffeurView(request, chauffeur_id):
+    chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
+    
+    # Configuration PayTech
+    # Remplace par tes vraies clés en production
+    API_KEY = "ta_cle_api_ici" 
+    API_SECRET = "ton_secret_ici"
+    
+    payload = {
+        "item_name": "Abonnement Mensuel N'WELE",
+        "item_price": "10000",
+        "currency": "XOF",
+        "ref_command": f"PAY-{chauffeur.id}-{json.dumps(os.urandom(4).hex())}",
+        "command_name": f"Abonnement de {chauffeur.nom_complet}",
+        "env": "test", # Change en 'live' pour les vrais paiements
+        "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
+        "success_url": "https://nwele-api.onrender.com/success/",
+        "cancel_url": "https://nwele-api.onrender.com/cancel/",
+    }
+    
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "API_KEY": API_KEY,
+        "API_SECRET": API_SECRET,
+    }
+    
+    try:
+        response = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
+        return Response(response.json())
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
+
+
+# --- 6. CALLBACK PAIEMENT (IPN) ---
+class PaytechCallbackView(APIView):
+    def post(self, request):
+        # PayTech envoie les données en POST lors de la validation
+        ref_command = request.data.get('ref_command')
+        
+        if ref_command:
+            try:
+                # Format de ref_command : PAY-ID-RANDOM
+                chauffeur_id = ref_command.split('-')[1]
+                chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+                
+                # Active l'abonnement via la méthode du modèle
+                chauffeur.enregistrer_paiement()
+                
+                return Response({"status": "Paiement validé avec succès"}, status=200)
+            except Exception as e:
+                return Response({"error": "Erreur lors du traitement"}, status=400)
+        
+        return Response({"error": "Données de callback invalides"}, status=400)
