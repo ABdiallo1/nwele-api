@@ -44,22 +44,47 @@ def mettre_a_jour_chauffeur(request, pk):
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
-    # Remplacer par tes clés PayTech
-    headers = {"API_KEY": "TON_API_KEY", "API_SECRET": "TON_API_SECRET"}
+    
+    # 1. Tes clés API (Vérifie bien qu'elles sont correctes dans ton compte PayTech)
+    API_KEY = "TA_CLE_API" 
+    API_SECRET = "TON_SECRET_API"
+    
+    # 2. Construction de la requête
+    url = "https://paytech.sn/api/payment/request-payment"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "API_KEY": API_KEY,
+        "API_SECRET": API_SECRET,
+    }
+    
+    # 3. Le Payload (Le secret est ici)
     payload = {
-        "item_name": "Abonnement N'WELE",
+        "item_name": "Abonnement Taxi N'WELE",
         "item_price": "10000",
         "currency": "XOF",
-        "ref_command": f"PAY-{chauffeur.id}-{int(time.time())}",
-        "env": "test",
-        "success_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
+        # On force une référence unique à chaque seconde pour éviter l'erreur "Expiré"
+        "ref_command": f"NWELE-{chauffeur.id}-{int(time.time())}", 
+        "command_name": f"Paiement de {chauffeur.nom_complet}",
+        "env": "test", # Change en 'live' plus tard
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
+        "success_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
+        "cancel_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
     }
+    
     try:
-        r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
-        return Response(r.json())
-    except:
-        return Response({"error": "Erreur PayTech"}, status=400)
+        response = requests.post(url, json=payload, headers=headers)
+        res_data = response.json()
+        
+        # Si PayTech renvoie un succès, on donne l'URL à Flutter
+        if res_data.get('success') == 1:
+            return Response({"url": res_data['redirect_url']}, status=200)
+        else:
+            # Si PayTech renvoie une erreur (clés invalides, etc.)
+            return Response({"error": res_data.get('errors', 'Erreur PayTech')}, status=400)
+            
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
 @api_view(['POST'])
 def PaytechCallbackView(request):
