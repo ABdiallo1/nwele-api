@@ -5,10 +5,10 @@ from .views import (
 )
 
 urlpatterns = [
-    path('connexion-chauffeur/', connexion_chauffeur, name='connexion'),
-    path('payer/<int:chauffeur_id>/', PaiementChauffeurView, name='payer'),
-    path('paiement/callback/', PaytechCallbackView.as_view(), name='callback_paytech'),
-    path('mettre-a-jour-chauffeur/<int:pk>/', mettre_a_jour_chauffeur, name='update_gps'),
-    path('liste-taxis/', ChauffeurListView.as_view(), name='liste_taxis'),
-    path('profil-chauffeur/<int:pk>/', ChauffeurProfilView.as_view(), name='profil_chauffeur'),
+    path('connexion-chauffeur/', connexion_chauffeur),
+    path('payer/<int:chauffeur_id>/', PaiementChauffeurView),
+    path('paiement/callback/', PaytechCallbackView), # .as_view() supprimé ici
+    path('mettre-a-jour-chauffeur/<int:pk>/', mettre_a_jour_chauffeur),
+    path('liste-taxis/', ChauffeurListView),
+    path('profil-chauffeur/<int:pk>/', ChauffeurProfilView),
 ]
