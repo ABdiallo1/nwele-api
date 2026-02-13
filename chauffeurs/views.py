@@ -110,14 +110,3 @@ def creer_admin_force(request):
         return HttpResponse("Admin créé avec succès (Login: admin / Pass: admin123)")
     return HttpResponse("L'admin existe déjà.")
 
-def paiement_succes(request):
-    return HttpResponse("""
-        <html>
-            <body style='text-align:center; font-family:sans-serif; padding-top:50px;'>
-                <h1 style='color:green;'>Paiement réussi !</h1>
-                <p>Votre abonnement a été activé.</p>
-                <p>Vous pouvez maintenant fermer cette fenêtre et retourner dans l'application N'WELE.</p>
-                <button onclick='window.close()' style='padding:10px 20px; background:gold; border:none; border-radius:5px;'>Retour</button>
-            </body>
-        </html>
-    """)
