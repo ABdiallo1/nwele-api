@@ -11,5 +11,4 @@ urlpatterns = [
     path('mettre-a-jour-chauffeur/<int:pk>/', mettre_a_jour_chauffeur),
     path('liste-taxis/', ChauffeurListView),
     path('profil-chauffeur/<int:pk>/', ChauffeurProfilView),
-   
 ]

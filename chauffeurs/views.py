@@ -46,8 +46,8 @@ def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     
     # --- REMPLACE CES CLÉS PAR TES VRAIES CLÉS PAYTECH ---
-    API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2" 
-    API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
+    API_KEY = "METS_TA_CLE_ICI" 
+    API_SECRET = "METS_TON_SECRET_ICI"
     # ---------------------------------------------------
     
     url = "https://paytech.sn/api/payment/request-payment"
@@ -109,4 +109,3 @@ def creer_admin_force(request):
         User.objects.create_superuser("admin", "admin@test.com", "admin123")
         return HttpResponse("Admin créé avec succès (Login: admin / Pass: admin123)")
     return HttpResponse("L'admin existe déjà.")
-
