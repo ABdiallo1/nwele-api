@@ -5,7 +5,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Chauffeur
 
-# --- AJOUTE CETTE FONCTION QUI MANQUAIT ---
+# --- CETTE FONCTION ÉTAIT MANQUANTE ET CAUSAIT L'ERREUR 500 ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -50,7 +50,6 @@ def ChauffeurProfilView(request, pk):
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     
-    # Tes clés sont maintenant insérées
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2" 
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
@@ -102,4 +101,4 @@ def ChauffeurListView(request):
     return Response(data)
 
 def paiement_succes(request):
-    return HttpResponse("<html><body style='text-align:center;padding-top:50px;font-family:sans-serif;'><h1>✅ Paiement Reçu !</h1><p>Votre abonnement est activé. Vous pouvez retourner dans l'application.</p></body></html>")
+    return HttpResponse("<html><body style='text-align:center;padding-top:50px;font-family:sans-serif;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'application pour activer votre compte.</p></body></html>")
