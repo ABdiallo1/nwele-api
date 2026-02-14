@@ -49,7 +49,7 @@ def mettre_a_jour_chauffeur(request, pk):
     chauffeur.latitude = request.data.get('latitude', chauffeur.latitude)
     chauffeur.longitude = request.data.get('longitude', chauffeur.longitude)
     chauffeur.save()
-    return Response({"status": "Mis à jour", "est_en_ligne": chauffeur.est_en_ligne})
+    return Response({"status": "Mis à jour"})
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -70,12 +70,12 @@ def ChauffeurProfilView(request, pk):
         "expire": str(c.date_expiration)
     })
 
-# --- PAIEMENT PAYTECH (CORRIGÉ POUR ÉVITER LE FIGEAGE) ---
+# --- PAIEMENT PAYTECH ---
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def PaiementChauffeurView(request, chauffeur_id):
     c = get_object_or_404(Chauffeur, id=chauffeur_id)
     
-    # Configuration PayTech
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
@@ -84,7 +84,7 @@ def PaiementChauffeurView(request, chauffeur_id):
         "item_price": "10000",
         "currency": "XOF",
         "ref_command": f"NWELE-{c.id}-{int(time.time())}",
-        "env": "test",  # Important: reste en 'test' pour tes essais
+        "env": "test",
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
         "success_url": "https://nwele-api.onrender.com/api/paiement-succes/",
         "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
@@ -98,23 +98,20 @@ def PaiementChauffeurView(request, chauffeur_id):
     }
 
     try:
-        response = requests.post(
+        r = requests.post(
             "https://paytech.sn/api/payment/request-payment", 
             json=payload, 
             headers=headers,
-            timeout=15
+            timeout=20
         )
-        
-        res_data = response.json()
+        res_data = r.json()
         
         if res_data.get('success') == 1:
-            # On renvoie la clé 'url' pour ton code Flutter
             return Response({"url": res_data['redirect_url']}, status=200)
         else:
-            return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
-            
+            return Response({"error": "PayTech Error", "details": res_data}, status=400)
     except Exception as e:
-        return Response({"error": f"Connexion échouée : {str(e)}"}, status=500)
+        return Response({"error": str(e)}, status=500)
 
 @csrf_exempt
 @api_view(['POST'])
@@ -131,4 +128,4 @@ def PaytechCallbackView(request):
     return Response({"status": "error"}, status=400)
 
 def paiement_succes(request):
-    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement reçu !</h1><p>Retournez dans l'application et cliquez sur ACTIVER.</p></body></html>")
+    return HttpResponse("✅ Paiement reçu ! Revenez dans l'app et cliquez sur ACTIVER.")
