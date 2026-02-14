@@ -9,7 +9,7 @@ from django.core.management import call_command
 from django.contrib.auth.models import User
 from .models import Chauffeur
 
-# --- OUTILS DE REPARATION ---
+# --- OUTILS DE RÉPARATION ---
 def force_migrate(request):
     try:
         call_command('migrate', interactive=False)
@@ -53,13 +53,6 @@ def mettre_a_jour_chauffeur(request, pk):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def ChauffeurListView(request):
-    chauffeurs = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
-    data = [{"id": c.id, "lat": c.latitude, "lng": c.longitude, "nom": c.nom_complet} for c in chauffeurs]
-    return Response(data)
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
 def ChauffeurProfilView(request, pk):
     c = get_object_or_404(Chauffeur, pk=pk)
     return Response({
@@ -67,7 +60,7 @@ def ChauffeurProfilView(request, pk):
         "nom_complet": c.nom_complet, 
         "est_actif": c.est_actif,
         "est_en_ligne": c.est_en_ligne,
-        "expire": str(c.date_expiration)
+        "jours_restants": c.jours_restants
     })
 
 # --- PAIEMENT PAYTECH ---
@@ -76,6 +69,7 @@ def ChauffeurProfilView(request, pk):
 def PaiementChauffeurView(request, chauffeur_id):
     c = get_object_or_404(Chauffeur, id=chauffeur_id)
     
+    # Clés API de test
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
@@ -109,7 +103,7 @@ def PaiementChauffeurView(request, chauffeur_id):
         if res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
         else:
-            return Response({"error": "PayTech Error", "details": res_data}, status=400)
+            return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
@@ -128,4 +122,4 @@ def PaytechCallbackView(request):
     return Response({"status": "error"}, status=400)
 
 def paiement_succes(request):
-    return HttpResponse("✅ Paiement reçu ! Revenez dans l'app et cliquez sur ACTIVER.")
+    return HttpResponse("✅ Paiement reçu ! Retournez dans l'app et cliquez sur ACTIVER.")
