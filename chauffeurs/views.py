@@ -9,7 +9,7 @@ from django.core.management import call_command
 from django.contrib.auth.models import User
 from .models import Chauffeur
 
-# --- OUTILS DE REPARATION (URLS DE SECOURS) ---
+# --- OUTILS DE REPARATION ---
 def force_migrate(request):
     try:
         call_command('migrate', interactive=False)
@@ -30,10 +30,8 @@ def creer_admin_force(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
-    # Nettoyage du numéro reçu de Flutter
     tel = "".join(filter(str.isdigit, str(request.data.get('telephone', ''))))
     chauffeur = Chauffeur.objects.filter(telephone__icontains=tel).first()
-    
     if chauffeur:
         return Response({
             "id": chauffeur.id,
@@ -51,7 +49,7 @@ def mettre_a_jour_chauffeur(request, pk):
     chauffeur.latitude = request.data.get('latitude', chauffeur.latitude)
     chauffeur.longitude = request.data.get('longitude', chauffeur.longitude)
     chauffeur.save()
-    return Response({"status": "Mis à jour"})
+    return Response({"status": "Mis à jour", "est_en_ligne": chauffeur.est_en_ligne})
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -72,7 +70,7 @@ def ChauffeurProfilView(request, pk):
         "expire": str(c.date_expiration)
     })
 
-# --- PAIEMENT (CORRIGÉ POUR LA REDIRECTION FLUTTER) ---
+# --- PAIEMENT PAYTECH (CORRIGÉ POUR ÉVITER LE FIGEAGE) ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     c = get_object_or_404(Chauffeur, id=chauffeur_id)
@@ -82,35 +80,41 @@ def PaiementChauffeurView(request, chauffeur_id):
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
     payload = {
-        "item_name": "Abonnement N'WELE",
+        "item_name": "Abonnement Taxi NWELE",
         "item_price": "10000",
         "currency": "XOF",
         "ref_command": f"NWELE-{c.id}-{int(time.time())}",
-        "env": "test",
+        "env": "test",  # Important: reste en 'test' pour tes essais
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
         "success_url": "https://nwele-api.onrender.com/api/paiement-succes/",
         "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
     }
     
     headers = {
-        "API_KEY": API_KEY, 
+        "API_KEY": API_KEY,
         "API_SECRET": API_SECRET,
+        "Accept": "application/json",
         "Content-Type": "application/json"
     }
 
     try:
-        r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
-        res_data = r.json()
+        response = requests.post(
+            "https://paytech.sn/api/payment/request-payment", 
+            json=payload, 
+            headers=headers,
+            timeout=15
+        )
         
-        # Vérification de la réponse PayTech
+        res_data = response.json()
+        
         if res_data.get('success') == 1:
-            # IMPORTANT : Ton code Flutter attend la clé 'url'
-            # PayTech envoie 'redirect_url', donc on la transforme ici
+            # On renvoie la clé 'url' pour ton code Flutter
             return Response({"url": res_data['redirect_url']}, status=200)
-        
-        return Response({"error": "Erreur PayTech: " + str(res_data.get('errors'))}, status=400)
+        else:
+            return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
+            
     except Exception as e:
-        return Response({"error": f"Connexion serveur Paytech échouée: {str(e)}"}, status=500)
+        return Response({"error": f"Connexion échouée : {str(e)}"}, status=500)
 
 @csrf_exempt
 @api_view(['POST'])
@@ -123,9 +127,8 @@ def PaytechCallbackView(request):
             c = Chauffeur.objects.get(id=c_id)
             c.enregistrer_paiement()
             return Response({"status": "ok"})
-        except Exception as e:
-            return Response({"status": "error", "message": str(e)}, status=400)
-    return Response({"status": "error", "message": "Référence invalide"}, status=400)
+        except: pass
+    return Response({"status": "error"}, status=400)
 
 def paiement_succes(request):
-    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement terminé !</h1><p>Retournez dans l'application.</p></body></html>")
+    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement reçu !</h1><p>Retournez dans l'application et cliquez sur ACTIVER.</p></body></html>")
