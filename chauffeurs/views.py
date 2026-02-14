@@ -1,8 +1,10 @@
 import os, requests, json, time
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from django.views.decorators.csrf import csrf_exempt
 from .models import Chauffeur
 
 @api_view(['POST'])
@@ -48,7 +50,6 @@ def ChauffeurProfilView(request, pk):
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
-    
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2" 
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
@@ -81,7 +82,9 @@ def PaiementChauffeurView(request, chauffeur_id):
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
+@csrf_exempt
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def PaytechCallbackView(request):
     ref = request.data.get('ref_command')
     if ref:
@@ -100,7 +103,7 @@ def ChauffeurListView(request):
     return Response(data)
 
 def paiement_succes(request):
-    return HttpResponse("<html><body style='text-align:center;padding-top:50px;font-family:sans-serif;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'application pour activer votre compte.</p></body></html>")
+    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'app et cliquez sur ACTIVER.</p></body></html>")
 
 def creer_admin_force(request):
     from django.contrib.auth.models import User
