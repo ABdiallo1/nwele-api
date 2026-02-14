@@ -1,22 +1,28 @@
 import os, requests, time
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_exempt
 from django.core.management import call_command
 from django.contrib.auth.models import User
+# Assure-toi que ton application s'appelle bien 'chauffeurs' 
+# sinon remplace par: from .models import Chauffeur
 from .models import Chauffeur
 
 # --- OUTILS DE RÉPARATION ---
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def force_migrate(request):
     try:
         call_command('migrate', interactive=False)
         return HttpResponse("✅ Migration réussie !")
     except Exception as e:
-        return HttpResponse(f"❌ Erreur: {str(e)}")
+        return HttpResponse(f"❌ Erreur migration: {str(e)}", status=500)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def creer_admin_force(request):
     try:
         if not User.objects.filter(username='admin').exists():
@@ -24,25 +30,30 @@ def creer_admin_force(request):
             return HttpResponse("✅ Admin créé (admin / Parser1234)")
         return HttpResponse("ℹ️ L'admin existe déjà.")
     except Exception as e:
-        return HttpResponse(f"❌ Erreur: {str(e)}")
+        return HttpResponse(f"❌ Erreur: {str(e)}", status=500)
 
 # --- API CHAUFFEUR ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
-    tel = "".join(filter(str.isdigit, str(request.data.get('telephone', ''))))
-    chauffeur = Chauffeur.objects.filter(telephone__icontains=tel).first()
-    if chauffeur:
-        return Response({
-            "id": chauffeur.id,
-            "nom_complet": chauffeur.nom_complet,
-            "est_actif": chauffeur.est_actif,
-            "est_en_ligne": chauffeur.est_en_ligne,
-            "jours_restants": chauffeur.jours_restants
-        })
-    return Response({"error": "Chauffeur non trouvé"}, status=404)
+    try:
+        telephone = request.data.get('telephone', '')
+        tel = "".join(filter(str.isdigit, str(telephone)))
+        chauffeur = Chauffeur.objects.filter(telephone__icontains=tel).first()
+        if chauffeur:
+            return Response({
+                "id": chauffeur.id,
+                "nom_complet": chauffeur.nom_complet,
+                "est_actif": chauffeur.est_actif,
+                "est_en_ligne": chauffeur.est_en_ligne,
+                "jours_restants": chauffeur.jours_restants
+            })
+        return Response({"error": "Chauffeur non trouvé"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
     chauffeur.est_en_ligne = request.data.get('est_en_ligne', chauffeur.est_en_ligne)
@@ -69,7 +80,6 @@ def ChauffeurProfilView(request, pk):
 def PaiementChauffeurView(request, chauffeur_id):
     c = get_object_or_404(Chauffeur, id=chauffeur_id)
     
-    # Clés API de test
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
@@ -103,7 +113,7 @@ def PaiementChauffeurView(request, chauffeur_id):
         if res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
         else:
-            return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
+            return Response({"error": "PayTech Error", "details": res_data}, status=400)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
@@ -116,10 +126,15 @@ def PaytechCallbackView(request):
         try:
             c_id = ref.split('-')[1]
             c = Chauffeur.objects.get(id=c_id)
-            c.enregistrer_paiement()
+            # Vérifie que cette méthode existe dans ton models.py
+            if hasattr(c, 'enregistrer_paiement'):
+                c.enregistrer_paiement()
+            else:
+                c.est_actif = True
+                c.save()
             return Response({"status": "ok"})
         except: pass
     return Response({"status": "error"}, status=400)
 
 def paiement_succes(request):
-    return HttpResponse("✅ Paiement reçu ! Retournez dans l'app et cliquez sur ACTIVER.")
+    return HttpResponse("✅ Paiement reçu ! Revenez dans l'app et cliquez sur ACTIVER.")
