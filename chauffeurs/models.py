@@ -1,9 +1,6 @@
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models.signals import post_migrate
-from django.dispatch import receiver
-from django.contrib.auth.models import User
 
 class Chauffeur(models.Model):
     nom_complet = models.CharField(max_length=100, verbose_name="Nom Complet")
@@ -18,12 +15,12 @@ class Chauffeur(models.Model):
     
     date_expiration = models.DateTimeField(null=True, blank=True)
     
-    latitude = models.FloatField(null=True, blank=True, default=0.0)
-    longitude = models.FloatField(null=True, blank=True, default=0.0)
+    latitude = models.FloatField(default=0.0)
+    longitude = models.FloatField(default=0.0)
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        # Nettoyage automatique du téléphone (garde uniquement les chiffres)
+        # Nettoyage automatique du téléphone (chiffres uniquement)
         if self.telephone:
             self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
         super().save(*args, **kwargs)
@@ -45,16 +42,10 @@ class Chauffeur(models.Model):
                 diff = self.date_expiration - maintenant
                 return diff.days
             else:
-                # Si expiré, on désactive l'accès
                 if self.est_actif:
+                    # Utilisation de update pour éviter les problèmes de récursivité
                     Chauffeur.objects.filter(id=self.id).update(est_actif=False)
         return 0
 
     def __str__(self):
         return f"{self.nom_complet} - {self.telephone}"
-
-# Création automatique de l'admin au déploiement
-@receiver(post_migrate)
-def gestion_admin_automatique(sender, **kwargs):
-    if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')

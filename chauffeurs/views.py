@@ -6,33 +6,36 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_exempt
 from .models import Chauffeur
+from django.core.management import call_command
 
 # --- CONNEXION ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
-    tel_saisi = str(request.data.get('telephone', '')).strip()
-    tel_clean = "".join(filter(str.isdigit, tel_saisi))
+    try:
+        tel_saisi = str(request.data.get('telephone', '')).strip()
+        tel_clean = "".join(filter(str.isdigit, tel_saisi))
 
-    if not tel_clean:
-        return Response({"error": "Numéro invalide"}, status=400)
+        if not tel_clean:
+            return Response({"error": "Numéro invalide"}, status=400)
 
-    # On cherche une correspondance partielle pour éviter les erreurs d'indicatifs
-    chauffeur = Chauffeur.objects.filter(telephone__icontains=tel_clean).first()
+        # Recherche par fin de numéro pour être sûr de trouver le chauffeur
+        chauffeur = Chauffeur.objects.filter(telephone__icontains=tel_clean).first()
 
-    if chauffeur:
-        return Response({
-            "id": chauffeur.id,
-            "nom_complet": chauffeur.nom_complet,
-            "est_actif": chauffeur.est_actif,
-            "est_en_ligne": chauffeur.est_en_ligne,
-            "jours_restants": chauffeur.jours_restants,
-            "date_expiration": str(chauffeur.date_expiration) if chauffeur.date_expiration else None
-        })
-    
-    return Response({"error": "Aucun chauffeur trouvé avec ce numéro."}, status=404)
+        if chauffeur:
+            return Response({
+                "id": chauffeur.id,
+                "nom_complet": chauffeur.nom_complet,
+                "est_actif": chauffeur.est_actif,
+                "est_en_ligne": chauffeur.est_en_ligne,
+                "jours_restants": chauffeur.jours_restants,
+                "date_expiration": str(chauffeur.date_expiration) if chauffeur.date_expiration else None
+            })
+        return Response({"error": "Aucun chauffeur trouvé avec ce numéro."}, status=404)
+    except Exception as e:
+        return Response({"error": f"Erreur serveur: {str(e)}"}, status=500)
 
-# --- MISE À JOUR STATUT (DASHBOARD) ---
+# --- DASHBOARD UPDATE ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -47,20 +50,7 @@ def mettre_a_jour_chauffeur(request, pk):
     chauffeur.save()
     return Response({"status": "Mis à jour", "est_en_ligne": chauffeur.est_en_ligne})
 
-# --- PROFIL ---
-@api_view(['GET'])
-def ChauffeurProfilView(request, pk):
-    chauffeur = get_object_or_404(Chauffeur, pk=pk)
-    return Response({
-        "id": chauffeur.id,
-        "nom_complet": chauffeur.nom_complet,
-        "est_actif": chauffeur.est_actif,
-        "est_en_ligne": chauffeur.est_en_ligne,
-        "jours_restants": chauffeur.jours_restants,
-        "date_expiration": str(chauffeur.date_expiration)
-    })
-
-# --- PAIEMENT PAYTECH ---
+# --- PAIEMENT ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
@@ -87,8 +77,8 @@ def PaiementChauffeurView(request, chauffeur_id):
         if res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
         return Response({"error": "Erreur PayTech"}, status=400)
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
+    except:
+        return Response({"error": "Erreur de connexion PayTech"}, status=500)
 
 @csrf_exempt
 @api_view(['POST'])
@@ -112,4 +102,13 @@ def ChauffeurListView(request):
     return Response(data)
 
 def paiement_succes(request):
-    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'app.</p></body></html>")
+    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement Reçu !</h1></body></html>")
+
+
+def force_migrate(request):
+    try:
+        # Cette commande force Django à créer les tables manquantes
+        call_command('migrate', interactive=False)
+        return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1 style='color:green;'>✅ Migration réussie !</h1><p>La base de données est à jour. Vous pouvez maintenant utiliser l'application.</p></body></html>")
+    except Exception as e:
+        return HttpResponse(f"<html><body><h1>❌ Erreur de migration</h1><p>{str(e)}</p></body></html>")
