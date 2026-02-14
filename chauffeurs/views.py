@@ -5,7 +5,6 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Chauffeur
 
-# --- CETTE FONCTION ÉTAIT MANQUANTE ET CAUSAIT L'ERREUR 500 ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -13,8 +12,8 @@ def mettre_a_jour_chauffeur(request, pk):
     longitude = request.data.get('longitude')
     est_en_ligne = request.data.get('est_en_ligne')
 
-    if latitude: chauffeur.latitude = latitude
-    if longitude: chauffeur.longitude = longitude
+    if latitude is not None: chauffeur.latitude = latitude
+    if longitude is not None: chauffeur.longitude = longitude
     if est_en_ligne is not None: chauffeur.est_en_ligne = est_en_ligne
     
     chauffeur.save()
@@ -102,3 +101,10 @@ def ChauffeurListView(request):
 
 def paiement_succes(request):
     return HttpResponse("<html><body style='text-align:center;padding-top:50px;font-family:sans-serif;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'application pour activer votre compte.</p></body></html>")
+
+def creer_admin_force(request):
+    from django.contrib.auth.models import User
+    if not User.objects.filter(username="admin").exists():
+        User.objects.create_superuser("admin", "admin@nwele.com", "Parser1234")
+        return HttpResponse("Admin créé")
+    return HttpResponse("Admin existe déjà")
