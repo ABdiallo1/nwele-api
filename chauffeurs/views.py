@@ -11,24 +11,21 @@ from .models import Chauffeur
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
-    # Log pour voir ce que le téléphone envoie réellement (vérifie tes logs Render)
-    print(f"DEBUG DATA RECUE: {request.data}")
-
-    # Récupération souple du téléphone
-    telephone = request.data.get('telephone')
+    # 1. Récupérer le numéro envoyé par Flutter
+    telephone_saisi = request.data.get('telephone', '')
     
-    if not telephone:
-        return Response({"error": "Le champ téléphone est vide"}, status=400)
+    # 2. Nettoyage strict : on ne garde que les chiffres
+    tel_clean = "".join(filter(str.isdigit, str(telephone_saisi)))
 
-    # Nettoyage strict (on ne garde que les chiffres)
-    telephone_clean = "".join(filter(str.isdigit, str(telephone)))
-    
-    print(f"DEBUG TEL NETTOYÉ: {telephone_clean}")
+    if not tel_clean:
+        return Response({"error": "Numéro invalide"}, status=400)
 
-    try:
-        # On cherche une correspondance exacte sur le numéro nettoyé
-        chauffeur = Chauffeur.objects.get(telephone=telephone_clean)
-        
+    # 3. Recherche flexible
+    # On cherche un chauffeur dont le téléphone finit par les chiffres saisis
+    # ou contient les chiffres saisis (très utile si l'un a un indicatif et l'autre non)
+    chauffeur = Chauffeur.objects.filter(telephone__icontains=tel_clean).first()
+
+    if chauffeur:
         return Response({
             "id": chauffeur.id,
             "nom_complet": chauffeur.nom_complet,
@@ -36,13 +33,9 @@ def connexion_chauffeur(request):
             "est_en_ligne": chauffeur.est_en_ligne,
             "jours_restants": chauffeur.jours_restants
         })
-    except Chauffeur.DoesNotExist:
-        # On renvoie une erreur détaillée pour t'aider à débugger
-        return Response({
-            "error": "Chauffeur non trouvé",
-            "tel_envoye": telephone_clean,
-            "message": "Vérifiez que ce numéro est identique dans l'admin Django"
-        }, status=404)
+    
+    # 4. Si non trouvé, on renvoie une erreur 404 claire
+    return Response({"error": "Chauffeur non trouvé"}, status=404)
 # --- MISE À JOUR DU STATUT (Utilisé par le Dashboard) ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
