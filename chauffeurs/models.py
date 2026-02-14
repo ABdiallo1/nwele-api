@@ -20,7 +20,6 @@ class Chauffeur(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        # Nettoyage automatique du téléphone (chiffres uniquement)
         if self.telephone:
             self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
         super().save(*args, **kwargs)
@@ -37,14 +36,8 @@ class Chauffeur(models.Model):
     @property
     def jours_restants(self):
         if self.date_expiration:
-            maintenant = timezone.now()
-            if self.date_expiration > maintenant:
-                diff = self.date_expiration - maintenant
-                return diff.days
-            else:
-                if self.est_actif:
-                    # Utilisation de update pour éviter les problèmes de récursivité
-                    Chauffeur.objects.filter(id=self.id).update(est_actif=False)
+            diff = self.date_expiration - timezone.now()
+            return max(0, diff.days)
         return 0
 
     def __str__(self):

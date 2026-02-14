@@ -1,98 +1,54 @@
-import os, requests, json, time
+import os, requests, time
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_exempt
-from .models import Chauffeur
 from django.core.management import call_command
+from django.contrib.auth.models import User
+from .models import Chauffeur
 
-# --- CONNEXION ---
+# --- OUTILS DE REPARATION (URLS DE SECOURS) ---
+def force_migrate(request):
+    try:
+        call_command('migrate', interactive=False)
+        return HttpResponse("✅ Migration réussie !")
+    except Exception as e:
+        return HttpResponse(f"❌ Erreur: {str(e)}")
+
+def creer_admin_force(request):
+    try:
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
+            return HttpResponse("✅ Admin créé (admin / Parser1234)")
+        return HttpResponse("ℹ️ L'admin existe déjà.")
+    except Exception as e:
+        return HttpResponse(f"❌ Erreur: {str(e)}")
+
+# --- API CHAUFFEUR ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
-    try:
-        tel_saisi = str(request.data.get('telephone', '')).strip()
-        tel_clean = "".join(filter(str.isdigit, tel_saisi))
+    tel = "".join(filter(str.isdigit, str(request.data.get('telephone', ''))))
+    chauffeur = Chauffeur.objects.filter(telephone__icontains=tel).first()
+    if chauffeur:
+        return Response({
+            "id": chauffeur.id,
+            "nom_complet": chauffeur.nom_complet,
+            "est_actif": chauffeur.est_actif,
+            "jours_restants": chauffeur.jours_restants
+        })
+    return Response({"error": "Chauffeur non trouvé"}, status=404)
 
-        if not tel_clean:
-            return Response({"error": "Numéro invalide"}, status=400)
-
-        # Recherche par fin de numéro pour être sûr de trouver le chauffeur
-        chauffeur = Chauffeur.objects.filter(telephone__icontains=tel_clean).first()
-
-        if chauffeur:
-            return Response({
-                "id": chauffeur.id,
-                "nom_complet": chauffeur.nom_complet,
-                "est_actif": chauffeur.est_actif,
-                "est_en_ligne": chauffeur.est_en_ligne,
-                "jours_restants": chauffeur.jours_restants,
-                "date_expiration": str(chauffeur.date_expiration) if chauffeur.date_expiration else None
-            })
-        return Response({"error": "Aucun chauffeur trouvé avec ce numéro."}, status=404)
-    except Exception as e:
-        return Response({"error": f"Erreur serveur: {str(e)}"}, status=500)
-
-# --- DASHBOARD UPDATE ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
-    est_en_ligne = request.data.get('est_en_ligne')
-    lat = request.data.get('latitude')
-    lng = request.data.get('longitude')
-
-    if est_en_ligne is not None: chauffeur.est_en_ligne = est_en_ligne
-    if lat is not None: chauffeur.latitude = lat
-    if lng is not None: chauffeur.longitude = lng
-    
+    chauffeur.est_en_ligne = request.data.get('est_en_ligne', chauffeur.est_en_ligne)
+    chauffeur.latitude = request.data.get('latitude', chauffeur.latitude)
+    chauffeur.longitude = request.data.get('longitude', chauffeur.longitude)
     chauffeur.save()
-    return Response({"status": "Mis à jour", "est_en_ligne": chauffeur.est_en_ligne})
-
-# --- PAIEMENT ---
-@api_view(['POST'])
-def PaiementChauffeurView(request, chauffeur_id):
-    chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
-    API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2" 
-    API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
-    
-    payload = {
-        "item_name": "Abonnement Taxi N'WELE",
-        "item_price": "10000",
-        "currency": "XOF",
-        "ref_command": f"NWELE-{chauffeur.id}-{int(time.time())}", 
-        "command_name": f"Paiement de {chauffeur.nom_complet}",
-        "env": "test", 
-        "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
-        "success_url": "https://nwele-api.onrender.com/api/paiement-succes/",
-        "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
-    }
-    
-    headers = {"API_KEY": API_KEY, "API_SECRET": API_SECRET, "Content-Type": "application/json"}
-    
-    try:
-        response = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
-        res_data = response.json()
-        if res_data.get('success') == 1:
-            return Response({"url": res_data['redirect_url']}, status=200)
-        return Response({"error": "Erreur PayTech"}, status=400)
-    except:
-        return Response({"error": "Erreur de connexion PayTech"}, status=500)
-
-@csrf_exempt
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def PaytechCallbackView(request):
-    ref = request.data.get('ref_command')
-    if ref:
-        try:
-            c_id = ref.split('-')[1]
-            chauffeur = Chauffeur.objects.get(id=c_id)
-            chauffeur.enregistrer_paiement()
-            return Response({"status": "ok"})
-        except: pass
-    return Response({"status": "error"}, status=400)
+    return Response({"status": "Mis à jour"})
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -101,14 +57,42 @@ def ChauffeurListView(request):
     data = [{"id": c.id, "lat": c.latitude, "lng": c.longitude, "nom": c.nom_complet} for c in chauffeurs]
     return Response(data)
 
-def paiement_succes(request):
-    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement Reçu !</h1></body></html>")
+@api_view(['GET'])
+def ChauffeurProfilView(request, pk):
+    c = get_object_or_404(Chauffeur, pk=pk)
+    return Response({"id": c.id, "nom": c.nom_complet, "expire": str(c.date_expiration)})
 
-
-def force_migrate(request):
+# --- PAIEMENT ---
+@api_view(['POST'])
+def PaiementChauffeurView(request, chauffeur_id):
+    c = get_object_or_404(Chauffeur, id=chauffeur_id)
+    payload = {
+        "item_name": "Abonnement N'WELE",
+        "item_price": "10000",
+        "currency": "XOF",
+        "ref_command": f"NWELE-{c.id}-{int(time.time())}",
+        "env": "test",
+        "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
+        "success_url": "https://nwele-api.onrender.com/api/paiement-succes/",
+        "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
+    }
+    headers = {"API_KEY": "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2", "API_SECRET": "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"}
     try:
-        # Cette commande force Django à créer les tables manquantes
-        call_command('migrate', interactive=False)
-        return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1 style='color:green;'>✅ Migration réussie !</h1><p>La base de données est à jour. Vous pouvez maintenant utiliser l'application.</p></body></html>")
-    except Exception as e:
-        return HttpResponse(f"<html><body><h1>❌ Erreur de migration</h1><p>{str(e)}</p></body></html>")
+        r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
+        return Response(r.json())
+    except: return Response({"error": "Paytech injoignable"}, status=500)
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def PaytechCallbackView(request):
+    ref = request.data.get('ref_command')
+    if ref and '-' in ref:
+        c_id = ref.split('-')[1]
+        c = Chauffeur.objects.get(id=c_id)
+        c.enregistrer_paiement()
+        return Response({"status": "ok"})
+    return Response({"status": "error"}, status=400)
+
+def paiement_succes(request):
+    return HttpResponse("✅ Paiement terminé !")

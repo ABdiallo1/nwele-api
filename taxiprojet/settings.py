@@ -2,19 +2,18 @@ from pathlib import Path
 import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-cle-temporaire')
-DEBUG = False # PASSER SUR FALSE POUR RENDER
+SECRET_KEY = 'django-insecure-cle-nwele-2026'
+DEBUG = False 
 
 ALLOWED_HOSTS = ['*']
 CSRF_TRUSTED_ORIGINS = ['https://nwele-api.onrender.com']
 
 INSTALLED_APPS = [
-    'django.contrib.admin', # DOIT ETRE EN PREMIER
+    'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'whitenoise.runserver_nostatic',
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
@@ -23,7 +22,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # DOIT ETRE ICI
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -35,7 +34,6 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'taxiprojet.urls'
 
-# AJOUTER CECI POUR FIXER L'ERREUR ADMIN/LOGIN.HTML
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
