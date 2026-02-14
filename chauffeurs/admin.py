@@ -20,12 +20,10 @@ class ChauffeurAdmin(admin.ModelAdmin):
     
     list_editable = ('nom_complet', 'telephone')
     
-    # --- LA SOLUTION POUR LA LARGEUR DES CHAMPS ---
     formfield_overrides = {
         models.CharField: {'widget': TextInput(attrs={'style': 'width: 120px; padding: 4px;'})},
     }
 
-    # --- RENDU DES IMAGES ---
     def aperçu_permis(self, obj):
         try:
             if obj.photo_permis:
@@ -42,11 +40,12 @@ class ChauffeurAdmin(admin.ModelAdmin):
         return "🚗"
     aperçu_voiture.short_description = "AUTO"
 
-    # --- STATUTS ET RESTE (VERSIONS COURTES) ---
+    # --- AFFICHAGE DU SERVICE (EN LIGNE / HORS LIGNE) ---
     def statut_service(self, obj):
-        color = "#28a745" if obj.est_en_ligne else "#6c757d"
+        # Utilise le champ est_en_ligne du modèle
+        color = "#28a745" if obj.est_en_ligne else "#dc3545" # Vert si oui, Rouge si non
         text = "OUI" if obj.est_en_ligne else "NON"
-        return mark_safe(f'<span style="background:{color}; color:white; padding:2px 8px; border-radius:10px; font-size:10px;">{text}</span>')
+        return mark_safe(f'<span style="background:{color}; color:white; padding:3px 10px; border-radius:10px; font-size:10px; font-weight:bold;">{text}</span>')
     statut_service.short_description = "SERVICE"
 
     def statut_abonnement(self, obj):
@@ -56,7 +55,11 @@ class ChauffeurAdmin(admin.ModelAdmin):
 
     def reste(self, obj):
         if obj.date_expiration:
-            jours = (obj.date_expiration - timezone.now()).days
-            return f"{jours}j" if jours > 0 else "EXP"
+            # Correction : utilise timezone.now() pour comparer des dates avec fuseau horaire
+            delta = obj.date_expiration - timezone.now()
+            jours = delta.days
+            if jours > 0:
+                return f"{jours}j"
+            return mark_safe('<span style="color:red; font-weight:bold;">EXP</span>')
         return "-"
     reste.short_description = "RESTE"
