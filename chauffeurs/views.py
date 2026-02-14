@@ -11,19 +11,15 @@ from .models import Chauffeur
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
-    # 1. Récupérer le numéro envoyé par Flutter
-    telephone_saisi = request.data.get('telephone', '')
+    # On récupère ce que Flutter envoie
+    raw_phone = request.data.get('telephone', '')
     
-    # 2. Nettoyage strict : on ne garde que les chiffres
-    tel_clean = "".join(filter(str.isdigit, str(telephone_saisi)))
+    # NETTOYAGE : On ne garde QUE les chiffres
+    # Transforme "+221 66 666 66 66" ou " 66666666 " en "66666666"
+    clean_phone = "".join(filter(str.isdigit, str(raw_phone)))
 
-    if not tel_clean:
-        return Response({"error": "Numéro invalide"}, status=400)
-
-    # 3. Recherche flexible
-    # On cherche un chauffeur dont le téléphone finit par les chiffres saisis
-    # ou contient les chiffres saisis (très utile si l'un a un indicatif et l'autre non)
-    chauffeur = Chauffeur.objects.filter(telephone__icontains=tel_clean).first()
+    # RECHERCHE : On cherche un chauffeur dont le numéro CONTIENT ces chiffres
+    chauffeur = Chauffeur.objects.filter(telephone__icontains=clean_phone).first()
 
     if chauffeur:
         return Response({
@@ -34,7 +30,7 @@ def connexion_chauffeur(request):
             "jours_restants": chauffeur.jours_restants
         })
     
-    # 4. Si non trouvé, on renvoie une erreur 404 claire
+    # Si on ne trouve pas, on renvoie une erreur 404
     return Response({"error": "Chauffeur non trouvé"}, status=404)
 # --- MISE À JOUR DU STATUT (Utilisé par le Dashboard) ---
 @api_view(['POST'])
