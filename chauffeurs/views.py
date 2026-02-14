@@ -7,35 +7,24 @@ from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_exempt
 from .models import Chauffeur
 
+# --- MISE À JOUR DU STATUT (UTILISÉ PAR LE DASHBOARD) ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
+    # On récupère 'est_en_ligne' envoyé par Flutter
+    est_en_ligne = request.data.get('est_en_ligne')
     latitude = request.data.get('latitude')
     longitude = request.data.get('longitude')
-    est_en_ligne = request.data.get('est_en_ligne')
 
+    if est_en_ligne is not None: 
+        chauffeur.est_en_ligne = est_en_ligne
     if latitude is not None: chauffeur.latitude = latitude
     if longitude is not None: chauffeur.longitude = longitude
-    if est_en_ligne is not None: chauffeur.est_en_ligne = est_en_ligne
     
     chauffeur.save()
-    return Response({"status": "Mis à jour"})
+    return Response({"status": "Mis à jour", "est_en_ligne": chauffeur.est_en_ligne})
 
-@api_view(['POST'])
-def connexion_chauffeur(request):
-    telephone = request.data.get('telephone', '').strip()
-    telephone_clean = "".join(filter(str.isdigit, telephone))
-    try:
-        chauffeur = Chauffeur.objects.get(telephone=telephone_clean)
-        return Response({
-            "id": chauffeur.id,
-            "nom_complet": chauffeur.nom_complet,
-            "est_actif": chauffeur.est_actif,
-            "jours_restants": chauffeur.jours_restants
-        })
-    except Chauffeur.DoesNotExist:
-        return Response({"error": "Chauffeur non trouvé"}, status=404)
-
+# --- PROFIL (UTILISÉ POUR VÉRIFIER L'ACTIVATION) ---
 @api_view(['GET'])
 def ChauffeurProfilView(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -43,10 +32,12 @@ def ChauffeurProfilView(request, pk):
         "id": chauffeur.id,
         "nom_complet": chauffeur.nom_complet,
         "est_actif": chauffeur.est_actif,
+        "est_en_ligne": chauffeur.est_en_ligne,
         "jours_restants": chauffeur.jours_restants,
         "date_expiration": str(chauffeur.date_expiration)
     })
 
+# --- INITIALISATION DU PAIEMENT ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
@@ -82,6 +73,7 @@ def PaiementChauffeurView(request, chauffeur_id):
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
+# --- CALLBACK IPN (RÉCEPTION DU PAIEMENT) ---
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -96,18 +88,5 @@ def PaytechCallbackView(request):
         except: pass
     return Response({"status": "error"}, status=400)
 
-@api_view(['GET'])
-def ChauffeurListView(request):
-    chauffeurs = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
-    data = [{"id": c.id, "lat": c.latitude, "lng": c.longitude, "nom": c.nom_complet} for c in chauffeurs]
-    return Response(data)
-
 def paiement_succes(request):
     return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'app et cliquez sur ACTIVER.</p></body></html>")
-
-def creer_admin_force(request):
-    from django.contrib.auth.models import User
-    if not User.objects.filter(username="admin").exists():
-        User.objects.create_superuser("admin", "admin@nwele.com", "Parser1234")
-        return HttpResponse("Admin créé")
-    return HttpResponse("Admin existe déjà")
