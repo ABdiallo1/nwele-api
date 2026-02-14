@@ -5,6 +5,21 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Chauffeur
 
+# --- AJOUTE CETTE FONCTION QUI MANQUAIT ---
+@api_view(['POST'])
+def mettre_a_jour_chauffeur(request, pk):
+    chauffeur = get_object_or_404(Chauffeur, pk=pk)
+    latitude = request.data.get('latitude')
+    longitude = request.data.get('longitude')
+    est_en_ligne = request.data.get('est_en_ligne')
+
+    if latitude: chauffeur.latitude = latitude
+    if longitude: chauffeur.longitude = longitude
+    if est_en_ligne is not None: chauffeur.est_en_ligne = est_en_ligne
+    
+    chauffeur.save()
+    return Response({"status": "Mis à jour"})
+
 @api_view(['POST'])
 def connexion_chauffeur(request):
     telephone = request.data.get('telephone', '').strip()
@@ -35,7 +50,7 @@ def ChauffeurProfilView(request, pk):
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     
-    # --- IMPORTANT : REMPLACE PAR TES CLES REELLES ---
+    # Tes clés sont maintenant insérées
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2" 
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
@@ -53,7 +68,7 @@ def PaiementChauffeurView(request, chauffeur_id):
         "currency": "XOF",
         "ref_command": f"NWELE-{chauffeur.id}-{int(time.time())}", 
         "command_name": f"Paiement de {chauffeur.nom_complet}",
-        "env": "test", # Change en 'live' plus tard
+        "env": "test", 
         "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
         "success_url": "https://nwele-api.onrender.com/api/paiement-succes/",
         "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
@@ -87,4 +102,4 @@ def ChauffeurListView(request):
     return Response(data)
 
 def paiement_succes(request):
-    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>Paiement Reçu !</h1><p>Retournez dans l'application N'WELE et cliquez sur Activer.</p></body></html>")
+    return HttpResponse("<html><body style='text-align:center;padding-top:50px;font-family:sans-serif;'><h1>✅ Paiement Reçu !</h1><p>Votre abonnement est activé. Vous pouvez retourner dans l'application.</p></body></html>")

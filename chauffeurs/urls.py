@@ -1,7 +1,12 @@
 from django.urls import path
 from .views import (
-    connexion_chauffeur, PaiementChauffeurView, PaytechCallbackView,
-    mettre_a_jour_chauffeur, ChauffeurListView, ChauffeurProfilView, paiement_succes
+    connexion_chauffeur, 
+    PaiementChauffeurView, 
+    PaytechCallbackView,
+    mettre_a_jour_chauffeur, # Maintenant cette fonction existe dans views.py
+    ChauffeurListView, 
+    ChauffeurProfilView, 
+    paiement_succes
 )
 
 urlpatterns = [
