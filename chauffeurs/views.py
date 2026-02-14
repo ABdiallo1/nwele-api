@@ -11,11 +11,24 @@ from .models import Chauffeur
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
-    telephone = request.data.get('telephone', '').strip()
-    # Nettoyer le téléphone pour ne garder que les chiffres
-    telephone_clean = "".join(filter(str.isdigit, telephone))
+    # Log pour voir ce que le téléphone envoie réellement (vérifie tes logs Render)
+    print(f"DEBUG DATA RECUE: {request.data}")
+
+    # Récupération souple du téléphone
+    telephone = request.data.get('telephone')
+    
+    if not telephone:
+        return Response({"error": "Le champ téléphone est vide"}, status=400)
+
+    # Nettoyage strict (on ne garde que les chiffres)
+    telephone_clean = "".join(filter(str.isdigit, str(telephone)))
+    
+    print(f"DEBUG TEL NETTOYÉ: {telephone_clean}")
+
     try:
+        # On cherche une correspondance exacte sur le numéro nettoyé
         chauffeur = Chauffeur.objects.get(telephone=telephone_clean)
+        
         return Response({
             "id": chauffeur.id,
             "nom_complet": chauffeur.nom_complet,
@@ -24,8 +37,12 @@ def connexion_chauffeur(request):
             "jours_restants": chauffeur.jours_restants
         })
     except Chauffeur.DoesNotExist:
-        return Response({"error": "Chauffeur non trouvé"}, status=404)
-
+        # On renvoie une erreur détaillée pour t'aider à débugger
+        return Response({
+            "error": "Chauffeur non trouvé",
+            "tel_envoye": telephone_clean,
+            "message": "Vérifiez que ce numéro est identique dans l'admin Django"
+        }, status=404)
 # --- MISE À JOUR DU STATUT (Utilisé par le Dashboard) ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
