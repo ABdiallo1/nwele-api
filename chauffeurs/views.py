@@ -6,20 +6,21 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_exempt
 from .models import Chauffeur
+from django.db.models import Q
 
-# --- CONNEXION (Indispensable pour urls.py) ---
+# --- CONNEXION ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
-    # On récupère ce que Flutter envoie
-    raw_phone = request.data.get('telephone', '')
-    
-    # NETTOYAGE : On ne garde QUE les chiffres
-    # Transforme "+221 66 666 66 66" ou " 66666666 " en "66666666"
-    clean_phone = "".join(filter(str.isdigit, str(raw_phone)))
+    tel_saisi = str(request.data.get('telephone', '')).strip()
+    # Nettoyage strict pour comparer des chiffres uniquement
+    tel_clean = "".join(filter(str.isdigit, tel_saisi))
 
-    # RECHERCHE : On cherche un chauffeur dont le numéro CONTIENT ces chiffres
-    chauffeur = Chauffeur.objects.filter(telephone__icontains=clean_phone).first()
+    if not tel_clean:
+        return Response({"error": "Veuillez entrer un numéro valide."}, status=400)
+
+    # On cherche le chauffeur (flexible avec icontains)
+    chauffeur = Chauffeur.objects.filter(telephone__icontains=tel_clean).first()
 
     if chauffeur:
         return Response({
@@ -27,28 +28,28 @@ def connexion_chauffeur(request):
             "nom_complet": chauffeur.nom_complet,
             "est_actif": chauffeur.est_actif,
             "est_en_ligne": chauffeur.est_en_ligne,
-            "jours_restants": chauffeur.jours_restants
+            "jours_restants": chauffeur.jours_restants,
+            "date_expiration": str(chauffeur.date_expiration) if chauffeur.date_expiration else None
         })
     
-    # Si on ne trouve pas, on renvoie une erreur 404
-    return Response({"error": "Chauffeur non trouvé"}, status=404)
-# --- MISE À JOUR DU STATUT (Utilisé par le Dashboard) ---
+    return Response({"error": "Aucun chauffeur trouvé avec ce numéro."}, status=404)
+
+# --- MISE À JOUR (DASHBOARD) ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
     est_en_ligne = request.data.get('est_en_ligne')
-    latitude = request.data.get('latitude')
-    longitude = request.data.get('longitude')
+    lat = request.data.get('latitude')
+    lng = request.data.get('longitude')
 
-    if est_en_ligne is not None: 
-        chauffeur.est_en_ligne = est_en_ligne
-    if latitude is not None: chauffeur.latitude = latitude
-    if longitude is not None: chauffeur.longitude = longitude
+    if est_en_ligne is not None: chauffeur.est_en_ligne = est_en_ligne
+    if lat is not None: chauffeur.latitude = lat
+    if lng is not None: chauffeur.longitude = lng
     
     chauffeur.save()
     return Response({"status": "Mis à jour", "est_en_ligne": chauffeur.est_en_ligne})
 
-# --- PROFIL (Utilisé pour vérifier l'activation) ---
+# --- PROFIL ---
 @api_view(['GET'])
 def ChauffeurProfilView(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -61,20 +62,13 @@ def ChauffeurProfilView(request, pk):
         "date_expiration": str(chauffeur.date_expiration)
     })
 
-# --- INITIALISATION DU PAIEMENT ---
+# --- PAIEMENT ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
+    # Tes clés Paytech
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2" 
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
-    
-    url = "https://paytech.sn/api/payment/request-payment"
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "API_KEY": API_KEY,
-        "API_SECRET": API_SECRET,
-    }
     
     payload = {
         "item_name": "Abonnement Taxi N'WELE",
@@ -88,16 +82,17 @@ def PaiementChauffeurView(request, chauffeur_id):
         "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
     }
     
+    headers = {"API_KEY": API_KEY, "API_SECRET": API_SECRET, "Content-Type": "application/json"}
+    
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
         res_data = response.json()
-        if response.status_code == 200 and res_data.get('success') == 1:
+        if res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
-        return Response({"error": res_data.get('errors', 'Erreur PayTech')}, status=400)
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
+        return Response({"error": "Erreur PayTech"}, status=400)
+    except:
+        return Response({"error": "Erreur serveur"}, status=500)
 
-# --- CALLBACK IPN ---
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -112,7 +107,6 @@ def PaytechCallbackView(request):
         except: pass
     return Response({"status": "error"}, status=400)
 
-# --- LISTE DES CHAUFFEURS (Pour la carte client) ---
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def ChauffeurListView(request):
@@ -122,10 +116,3 @@ def ChauffeurListView(request):
 
 def paiement_succes(request):
     return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'app et cliquez sur ACTIVER.</p></body></html>")
-
-def creer_admin_force(request):
-    from django.contrib.auth.models import User
-    if not User.objects.filter(username="admin").exists():
-        User.objects.create_superuser("admin", "admin@nwele.com", "Parser1234")
-        return HttpResponse("Admin créé")
-    return HttpResponse("Admin existe déjà")

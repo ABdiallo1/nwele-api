@@ -23,6 +23,7 @@ class Chauffeur(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        # Nettoyage automatique : on ne garde que les chiffres avant de sauvegarder
         self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
         super().save(*args, **kwargs)
 
@@ -38,13 +39,16 @@ class Chauffeur(models.Model):
     @property
     def jours_restants(self):
         if self.date_expiration:
-            if self.date_expiration > timezone.now():
-                diff = self.date_expiration - timezone.now()
+            maintenant = timezone.now()
+            if self.date_expiration > maintenant:
+                diff = self.date_expiration - maintenant
                 return diff.days
             else:
+                # Mise à jour automatique si expiré
                 if self.est_actif:
                     self.est_actif = False
-                    self.save()
+                    # On évite la boucle infinie dans save() en utilisant update
+                    Chauffeur.objects.filter(id=self.id).update(est_actif=False)
         return 0
 
     def __str__(self):
@@ -52,5 +56,6 @@ class Chauffeur(models.Model):
 
 @receiver(post_migrate)
 def gestion_admin_automatique(sender, **kwargs):
-    if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
+    if sender.name == 'votre_nom_d_application': # Remplace par le nom de ton app
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
