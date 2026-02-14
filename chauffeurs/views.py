@@ -30,13 +30,16 @@ def creer_admin_force(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
+    # Nettoyage du numéro reçu de Flutter
     tel = "".join(filter(str.isdigit, str(request.data.get('telephone', ''))))
     chauffeur = Chauffeur.objects.filter(telephone__icontains=tel).first()
+    
     if chauffeur:
         return Response({
             "id": chauffeur.id,
             "nom_complet": chauffeur.nom_complet,
             "est_actif": chauffeur.est_actif,
+            "est_en_ligne": chauffeur.est_en_ligne,
             "jours_restants": chauffeur.jours_restants
         })
     return Response({"error": "Chauffeur non trouvé"}, status=404)
@@ -58,14 +61,26 @@ def ChauffeurListView(request):
     return Response(data)
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def ChauffeurProfilView(request, pk):
     c = get_object_or_404(Chauffeur, pk=pk)
-    return Response({"id": c.id, "nom": c.nom_complet, "expire": str(c.date_expiration)})
+    return Response({
+        "id": c.id, 
+        "nom_complet": c.nom_complet, 
+        "est_actif": c.est_actif,
+        "est_en_ligne": c.est_en_ligne,
+        "expire": str(c.date_expiration)
+    })
 
-# --- PAIEMENT ---
+# --- PAIEMENT (CORRIGÉ POUR LA REDIRECTION FLUTTER) ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     c = get_object_or_404(Chauffeur, id=chauffeur_id)
+    
+    # Configuration PayTech
+    API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
+    API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
+    
     payload = {
         "item_name": "Abonnement N'WELE",
         "item_price": "10000",
@@ -76,11 +91,26 @@ def PaiementChauffeurView(request, chauffeur_id):
         "success_url": "https://nwele-api.onrender.com/api/paiement-succes/",
         "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
     }
-    headers = {"API_KEY": "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2", "API_SECRET": "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"}
+    
+    headers = {
+        "API_KEY": API_KEY, 
+        "API_SECRET": API_SECRET,
+        "Content-Type": "application/json"
+    }
+
     try:
         r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
-        return Response(r.json())
-    except: return Response({"error": "Paytech injoignable"}, status=500)
+        res_data = r.json()
+        
+        # Vérification de la réponse PayTech
+        if res_data.get('success') == 1:
+            # IMPORTANT : Ton code Flutter attend la clé 'url'
+            # PayTech envoie 'redirect_url', donc on la transforme ici
+            return Response({"url": res_data['redirect_url']}, status=200)
+        
+        return Response({"error": "Erreur PayTech: " + str(res_data.get('errors'))}, status=400)
+    except Exception as e:
+        return Response({"error": f"Connexion serveur Paytech échouée: {str(e)}"}, status=500)
 
 @csrf_exempt
 @api_view(['POST'])
@@ -88,11 +118,14 @@ def PaiementChauffeurView(request, chauffeur_id):
 def PaytechCallbackView(request):
     ref = request.data.get('ref_command')
     if ref and '-' in ref:
-        c_id = ref.split('-')[1]
-        c = Chauffeur.objects.get(id=c_id)
-        c.enregistrer_paiement()
-        return Response({"status": "ok"})
-    return Response({"status": "error"}, status=400)
+        try:
+            c_id = ref.split('-')[1]
+            c = Chauffeur.objects.get(id=c_id)
+            c.enregistrer_paiement()
+            return Response({"status": "ok"})
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=400)
+    return Response({"status": "error", "message": "Référence invalide"}, status=400)
 
 def paiement_succes(request):
-    return HttpResponse("✅ Paiement terminé !")
+    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement terminé !</h1><p>Retournez dans l'application.</p></body></html>")
