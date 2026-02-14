@@ -6,20 +6,18 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_exempt
 from .models import Chauffeur
-from django.db.models import Q
 
 # --- CONNEXION ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
     tel_saisi = str(request.data.get('telephone', '')).strip()
-    # Nettoyage strict pour comparer des chiffres uniquement
     tel_clean = "".join(filter(str.isdigit, tel_saisi))
 
     if not tel_clean:
-        return Response({"error": "Veuillez entrer un numéro valide."}, status=400)
+        return Response({"error": "Numéro invalide"}, status=400)
 
-    # On cherche le chauffeur (flexible avec icontains)
+    # On cherche une correspondance partielle pour éviter les erreurs d'indicatifs
     chauffeur = Chauffeur.objects.filter(telephone__icontains=tel_clean).first()
 
     if chauffeur:
@@ -34,7 +32,7 @@ def connexion_chauffeur(request):
     
     return Response({"error": "Aucun chauffeur trouvé avec ce numéro."}, status=404)
 
-# --- MISE À JOUR (DASHBOARD) ---
+# --- MISE À JOUR STATUT (DASHBOARD) ---
 @api_view(['POST'])
 def mettre_a_jour_chauffeur(request, pk):
     chauffeur = get_object_or_404(Chauffeur, pk=pk)
@@ -62,11 +60,10 @@ def ChauffeurProfilView(request, pk):
         "date_expiration": str(chauffeur.date_expiration)
     })
 
-# --- PAIEMENT ---
+# --- PAIEMENT PAYTECH ---
 @api_view(['POST'])
 def PaiementChauffeurView(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
-    # Tes clés Paytech
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2" 
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
@@ -90,8 +87,8 @@ def PaiementChauffeurView(request, chauffeur_id):
         if res_data.get('success') == 1:
             return Response({"url": res_data['redirect_url']}, status=200)
         return Response({"error": "Erreur PayTech"}, status=400)
-    except:
-        return Response({"error": "Erreur serveur"}, status=500)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
 @csrf_exempt
 @api_view(['POST'])
@@ -115,4 +112,4 @@ def ChauffeurListView(request):
     return Response(data)
 
 def paiement_succes(request):
-    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'app et cliquez sur ACTIVER.</p></body></html>")
+    return HttpResponse("<html><body style='text-align:center;padding-top:50px;'><h1>✅ Paiement Reçu !</h1><p>Retournez dans l'app.</p></body></html>")

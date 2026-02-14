@@ -18,13 +18,14 @@ class Chauffeur(models.Model):
     
     date_expiration = models.DateTimeField(null=True, blank=True)
     
-    latitude = models.FloatField(null=True, blank=True)
-    longitude = models.FloatField(null=True, blank=True)
+    latitude = models.FloatField(null=True, blank=True, default=0.0)
+    longitude = models.FloatField(null=True, blank=True, default=0.0)
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        # Nettoyage automatique : on ne garde que les chiffres avant de sauvegarder
-        self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
+        # Nettoyage automatique du téléphone (garde uniquement les chiffres)
+        if self.telephone:
+            self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
         super().save(*args, **kwargs)
 
     def enregistrer_paiement(self):
@@ -44,18 +45,16 @@ class Chauffeur(models.Model):
                 diff = self.date_expiration - maintenant
                 return diff.days
             else:
-                # Mise à jour automatique si expiré
+                # Si expiré, on désactive l'accès
                 if self.est_actif:
-                    self.est_actif = False
-                    # On évite la boucle infinie dans save() en utilisant update
                     Chauffeur.objects.filter(id=self.id).update(est_actif=False)
         return 0
 
     def __str__(self):
         return f"{self.nom_complet} - {self.telephone}"
 
+# Création automatique de l'admin au déploiement
 @receiver(post_migrate)
 def gestion_admin_automatique(sender, **kwargs):
-    if sender.name == 'votre_nom_d_application': # Remplace par le nom de ton app
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
