@@ -1,15 +1,23 @@
 from django.urls import path
-from . import views
+from .views import (
+    connexion_chauffeur, 
+    initier_paiement, 
+    paytech_callback, 
+    profil_chauffeur, 
+    update_chauffeur
+)
 
 urlpatterns = [
-    # Connexion et profil
-    path('connexion-chauffeur/', views.connexion_chauffeur),
-    path('profil-chauffeur/<int:chauffeur_id>/', views.profil_chauffeur),
+    # Connexion
+    path('api/connexion-chauffeur/', connexion_chauffeur, name='connexion_chauffeur'),
     
     # Paiement PayTech
-    path('payer/<int:chauffeur_id>/', views.initier_paiement),
-    path('paytech-callback/', views.paytech_callback),
+    path('api/payer/<int:chauffeur_id>/', initier_paiement, name='initier_paiement'),
+    path('api/paytech-callback/', paytech_callback, name='paytech_callback'),
     
-    # Mise à jour GPS
-    path('chauffeur/update/<int:chauffeur_id>/', views.update_chauffeur),
+    # Profil et Vérification statut actif
+    path('api/profil-chauffeur/<int:chauffeur_id>/', profil_chauffeur, name='profil_chauffeur'),
+    
+    # GPS et Statut en ligne (utilisé par le Dashboard Flutter)
+    path('api/mettre-a-jour-chauffeur/<int:chauffeur_id>/', update_chauffeur, name='update_chauffeur'),
 ]

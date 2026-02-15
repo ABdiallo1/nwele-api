@@ -6,8 +6,8 @@ from .models import Chauffeur
 from .serializers import ChauffeurSerializer
 
 # --- CONFIGURATION PAYTECH ---
-PAYTECH_API_KEY = "TA_CLE_API" # Mets ta vraie clé
-PAYTECH_API_SECRET = "TON_SECRET_API" # Mets ton vrai secret
+PAYTECH_API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
+PAYTECH_API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
 
 @csrf_exempt
 def connexion_chauffeur(request):
@@ -19,7 +19,7 @@ def connexion_chauffeur(request):
             if not telephone_saisi:
                 return JsonResponse({"error": "Numéro requis"}, status=400)
 
-            # Recherche du chauffeur
+            # Recherche du chauffeur par téléphone
             chauffeur = Chauffeur.objects.filter(telephone=telephone_saisi).first()
             
             if chauffeur:
@@ -41,15 +41,16 @@ def initier_paiement(request, chauffeur_id):
             "currency": "XOF",
             "ref_command": f"ABO_{chauffeur.id}",
             "command_name": f"Abonnement de {chauffeur.nom_complet}",
-            "env": "test",
+            "env": "test", # Change en "live" pour la production
             "ipn_url": "https://nwele-api.onrender.com/api/paytech-callback/",
             "success_url": "https://nwele-api.onrender.com/paiement-reussi/",
             "cancel_url": "https://nwele-api.onrender.com/paiement-annule/",
-            "custom_field": json.dumps({"chauffeur_id": chauffeur.id})
         }
         headers = {
-            "Accept": "application/json", "Content-Type": "application/json",
-            "API_KEY": PAYTECH_API_KEY, "API_SECRET": PAYTECH_API_SECRET
+            "Accept": "application/json", 
+            "Content-Type": "application/json",
+            "API_KEY": PAYTECH_API_KEY, 
+            "API_SECRET": PAYTECH_API_SECRET
         }
         r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
         return JsonResponse(r.json())
@@ -58,19 +59,20 @@ def initier_paiement(request, chauffeur_id):
 
 @csrf_exempt
 def paytech_callback(request):
+    """Callback appelé par PayTech après le paiement (IPN)"""
     try:
-        # PayTech envoie souvent ref_command pour identifier la vente
         ref = request.POST.get('ref_command', "")
         if "ABO_" in ref:
             c_id = ref.replace("ABO_", "")
             chauffeur = Chauffeur.objects.get(id=c_id)
-            # On utilise la fonction de ton modèle pour activer l'abonnement
+            # Appelle la méthode du modèle pour activer l'abonnement
             chauffeur.enregistrer_paiement()
             return HttpResponse("OK")
     except Exception as e:
         return HttpResponse("Error", status=200)
 
 def profil_chauffeur(request, chauffeur_id):
+    """Vérification du statut pour Flutter"""
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         serializer = ChauffeurSerializer(chauffeur)
@@ -80,14 +82,22 @@ def profil_chauffeur(request, chauffeur_id):
 
 @csrf_exempt
 def update_chauffeur(request, chauffeur_id):
+    """Mise à jour GPS et Statut En Ligne"""
     if request.method == "POST":
         try:
             data = json.loads(request.body)
             chauffeur = Chauffeur.objects.get(id=chauffeur_id)
-            chauffeur.latitude = data.get("lat", chauffeur.latitude)
-            chauffeur.longitude = data.get("lng", chauffeur.longitude)
-            chauffeur.est_en_ligne = data.get("est_en_ligne", False)
+            
+            # Harmonisation avec les clés envoyées par Flutter
+            if "latitude" in data:
+                chauffeur.latitude = data.get("latitude")
+            if "longitude" in data:
+                chauffeur.longitude = data.get("longitude")
+            if "est_en_ligne" in data:
+                chauffeur.est_en_ligne = data.get("est_en_ligne")
+            
             chauffeur.save()
             return JsonResponse({"status": "success"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "POST requis"}, status=405)
