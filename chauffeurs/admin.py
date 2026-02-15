@@ -1,49 +1,46 @@
 from django.contrib import admin
-from django.utils.safestring import mark_safe
-from django.utils import timezone
+from django.utils.html import format_html
 from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    # Configuration des colonnes
+    # Colonnes affichées dans la liste
     list_display = (
-        'aperçu_permis', 
-        'aperçu_voiture', 
+        'apercu_permis', 
+        'apercu_voiture', 
         'nom_complet', 
         'telephone', 
-        'plaque_immatriculation', # Nouvelle colonne
-        'statut_service',         # "Service Statutaire" (En ligne ou pas)
         'statut_abonnement', 
-        'reste'
+        'jours_restants_display',
+        'est_en_ligne'
     )
     
-    search_fields = ('telephone', 'nom_complet', 'plaque_immatriculation')
-    list_filter = ('est_en_ligne', 'est_actif')
+    # Filtres sur le côté droit
+    list_filter = ('est_actif', 'est_en_ligne')
+    
+    # Barre de recherche
+    search_fields = ('nom_complet', 'telephone')
 
-    def aperçu_permis(self, obj):
+    def apercu_permis(self, obj):
         if obj.photo_permis:
-            return mark_safe(f'<img src="{obj.photo_permis.url}" width="35" height="35" style="border-radius:4px;"/>')
-        return "📄"
+            return format_html('<img src="{}" style="width: 50px; height: 50px; border-radius: 5px;" />', obj.photo_permis.url)
+        return "Pas de photo"
+    apercu_permis.short_description = 'Permis'
 
-    def aperçu_voiture(self, obj):
+    def apercu_voiture(self, obj):
         if obj.photo_voiture:
-            return mark_safe(f'<img src="{obj.photo_voiture.url}" width="35" height="35" style="border-radius:4px;"/>')
-        return "🚗"
-
-    def statut_service(self, obj):
-        color = "#28a745" if obj.est_en_ligne else "#dc3545"
-        text = "EN LIGNE" if obj.est_en_ligne else "HORS LIGNE"
-        return mark_safe(f'<span style="background:{color}; color:white; padding:4px 10px; border-radius:12px; font-weight:bold; font-size:10px;">{text}</span>')
-    statut_service.short_description = "SERVICE STATUTAIRE"
+            return format_html('<img src="{}" style="width: 50px; height: 50px; border-radius: 5px;" />', obj.photo_voiture.url)
+        return "Pas de photo"
+    apercu_voiture.short_description = 'Voiture'
 
     def statut_abonnement(self, obj):
-        icon = "✅" if obj.est_actif else "❌"
-        return mark_safe(f'<span style="font-size:16px;">{icon}</span>')
-    statut_abonnement.short_description = "ABON."
+        if obj.est_actif:
+            return format_html('<b style="color: green;">✔ ACTIF</b>')
+        return format_html('<b style="color: red;">✘ INACTIF</b>')
+    statut_abonnement.short_description = 'Abonnement'
 
-    def reste(self, obj):
-        if obj.date_expiration:
-            delta = obj.date_expiration - timezone.now()
-            if delta.days > 0: return f"{delta.days}j"
-            return mark_safe('<b style="color:red;">EXPIRÉ</b>')
-        return "-"
+    def jours_restants_display(self, obj):
+        jours = obj.jours_restants
+        color = "green" if jours > 5 else "red"
+        return format_html('<span style="color: {};">{} jours</span>', color, jours)
+    jours_restants_display.short_description = 'Reste'

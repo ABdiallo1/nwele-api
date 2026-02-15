@@ -3,28 +3,38 @@ from django.utils import timezone
 from datetime import timedelta
 
 class Chauffeur(models.Model):
-    # Infos Identité
+    # --- Infos Identité (Noms inchangés pour ne pas perdre les données) ---
     nom_complet = models.CharField(max_length=100, verbose_name="Nom Complet")
     telephone = models.CharField(max_length=20, unique=True, verbose_name="Téléphone")
     plaque_immatriculation = models.CharField(max_length=20, blank=True, null=True, verbose_name="Plaque d'immatriculation")
     
-    # Documents
-    photo_permis = models.FileField(upload_to='permis/', null=True, blank=True)
-    photo_voiture = models.FileField(upload_to='voitures/', null=True, blank=True)
+    # --- Documents (Chemins inchangés pour garder les photos) ---
+    photo_permis = models.FileField(upload_to='permis/', null=True, blank=True, verbose_name="Photo du Permis")
+    photo_voiture = models.FileField(upload_to='voitures/', null=True, blank=True, verbose_name="Photo de la Voiture")
     
-    # États
+    # --- États ---
     est_actif = models.BooleanField(default=False, verbose_name="Abonnement Actif")
     est_en_ligne = models.BooleanField(default=False, verbose_name="En Service (En ligne)")
     
-    # Dates et Géo
+    # --- Dates et Géo ---
     date_expiration = models.DateTimeField(null=True, blank=True, verbose_name="Expire le")
     latitude = models.FloatField(default=0.0)
     longitude = models.FloatField(default=0.0)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        verbose_name = "Chauffeur"
+        verbose_name_plural = "Chauffeurs"
+
     def save(self, *args, **kwargs):
+        # Nettoyage du téléphone
         if self.telephone:
             self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
+        
+        # Mise à jour automatique du statut si expiré
+        if self.date_expiration and self.date_expiration < timezone.now():
+            self.est_actif = False
+            
         super().save(*args, **kwargs)
 
     def enregistrer_paiement(self):

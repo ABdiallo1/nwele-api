@@ -34,7 +34,7 @@ def initier_paiement(request, chauffeur_id):
             "currency": "XOF",
             "ref_command": f"ABO_{chauffeur.id}_{int(timezone.now().timestamp())}",
             "command_name": f"Paiement chauffeur {chauffeur.nom_complet}",
-            "env": "test",
+            "env": "test",  # Change en 'prod' quand tu seras prêt
             "ipn_url": "https://nwele-api.onrender.com/api/paytech-callback/",
             "success_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
             "cancel_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
@@ -52,23 +52,43 @@ def initier_paiement(request, chauffeur_id):
 
 @csrf_exempt
 def paytech_callback(request):
+    """
+    Cette fonction reçoit la notification de succès de PayTech (IPN).
+    """
     try:
-        ref = request.POST.get('ref_command', "")
-        if "ABO_" in ref:
+        # PayTech envoie les données en POST
+        ref = request.POST.get('ref_command')
+        
+        # Si vide, on tente de lire le JSON (cas rare chez PayTech mais plus sûr)
+        if not ref:
+            try:
+                data = json.loads(request.body)
+                ref = data.get('ref_command')
+            except:
+                pass
+
+        if ref and "ABO_" in ref:
             c_id = ref.split('_')[1]
             chauffeur = Chauffeur.objects.get(id=c_id)
-            chauffeur.enregistrer_paiement()
-            return HttpResponse("OK")
+            
+            # Mise à jour du statut du chauffeur
+            chauffeur.enregistrer_paiement() 
+            
+            print(f"Paiement validé pour le chauffeur ID: {c_id}")
+            return HttpResponse("OK", status=200)
+            
     except Exception as e:
-        print(f"Erreur Callback: {e}")
-    return HttpResponse("Erreur ou Ref Invalide")
+        print(f"Erreur Callback: {str(e)}")
+        return HttpResponse(f"Erreur: {str(e)}", status=500)
+        
+    return HttpResponse("Référence invalide", status=400)
 
 def profil_chauffeur(request, chauffeur_id):
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         return JsonResponse(ChauffeurSerializer(chauffeur).data)
     except Exception:
-        return JsonResponse({"error": "Inconnu"}, status=404)
+        return JsonResponse({"error": "Chauffeur inconnu"}, status=404)
 
 @csrf_exempt
 def update_chauffeur(request, chauffeur_id):
@@ -86,6 +106,7 @@ def update_chauffeur(request, chauffeur_id):
     return JsonResponse({"error": "POST requis"}, status=405)
 
 def liste_taxis_actifs(request):
+    # On affiche les chauffeurs qui ont payé (est_actif) ET qui sont en ligne
     taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
     serializer = ChauffeurSerializer(taxis, many=True)
     return JsonResponse(serializer.data, safe=False)
