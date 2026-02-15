@@ -2,9 +2,9 @@ import json
 import requests
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 from .models import Chauffeur
 from .serializers import ChauffeurSerializer
-from django.utils import timezone
 
 # --- CONFIGURATION PAYTECH ---
 PAYTECH_API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
@@ -36,12 +36,14 @@ def initier_paiement(request, chauffeur_id):
             "command_name": f"Paiement chauffeur {chauffeur.nom_complet}",
             "env": "test",
             "ipn_url": "https://nwele-api.onrender.com/api/paytech-callback/",
-            "success_url": "https://nwele-api.onrender.com/api/profil-chauffeur/" + str(chauffeur.id),
-            "cancel_url": "https://nwele-api.onrender.com/api/profil-chauffeur/" + str(chauffeur.id),
+            "success_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
+            "cancel_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
         }
         headers = {
-            "Accept": "application/json", "Content-Type": "application/json",
-            "API_KEY": PAYTECH_API_KEY, "API_SECRET": PAYTECH_API_SECRET
+            "Accept": "application/json", 
+            "Content-Type": "application/json",
+            "API_KEY": PAYTECH_API_KEY, 
+            "API_SECRET": PAYTECH_API_SECRET
         }
         r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
         return JsonResponse(r.json())
@@ -50,11 +52,14 @@ def initier_paiement(request, chauffeur_id):
 
 @csrf_exempt
 def paytech_callback(request):
+    """Cette fonction reçoit le signal de succès de PayTech"""
     try:
         ref = request.POST.get('ref_command', "")
         if "ABO_" in ref:
+            # On extrait l'ID du chauffeur depuis ABO_ID_TIMESTAMP
             c_id = ref.split('_')[1]
             chauffeur = Chauffeur.objects.get(id=c_id)
+            # On active son abonnement
             chauffeur.enregistrer_paiement()
             return HttpResponse("OK")
     except Exception as e:
@@ -66,7 +71,7 @@ def profil_chauffeur(request, chauffeur_id):
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         return JsonResponse(ChauffeurSerializer(chauffeur).data)
     except Exception:
-        return JsonResponse({"error": "Inconnu"}, status=404)
+        return JsonResponse({"error": "Chauffeur introuvable"}, status=404)
 
 @csrf_exempt
 def update_chauffeur(request, chauffeur_id):
@@ -83,9 +88,8 @@ def update_chauffeur(request, chauffeur_id):
             return JsonResponse({"error": "Echec mise à jour"}, status=400)
     return JsonResponse({"error": "POST requis"}, status=405)
 
-# --- LA NOUVELLE VUE POUR LA LISTE DES TAXIS ---
 def liste_taxis_actifs(request):
-    # On ne prend que ceux qui ont payé ET qui ont activé le bouton "En ligne"
+    """Liste des taxis visibles par les clients"""
     taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
     serializer = ChauffeurSerializer(taxis, many=True)
     return JsonResponse(serializer.data, safe=False)
