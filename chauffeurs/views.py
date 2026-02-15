@@ -20,7 +20,7 @@ def connexion_chauffeur(request):
             if chauffeur:
                 return JsonResponse(ChauffeurSerializer(chauffeur).data, status=200)
             return JsonResponse({"error": "Chauffeur non trouvé"}, status=404)
-        except:
+        except Exception:
             return JsonResponse({"error": "Erreur format JSON"}, status=400)
     return JsonResponse({"error": "POST requis"}, status=405)
 
@@ -48,28 +48,24 @@ def initier_paiement(request, chauffeur_id):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
-# --- LA FONCTION QUI MANQUAIT ---
 @csrf_exempt
 def paytech_callback(request):
-    """C'est ici que PayTech confirme le paiement"""
     try:
-        # PayTech envoie les données en POST (form-data)
         ref = request.POST.get('ref_command', "")
         if "ABO_" in ref:
-            # On extrait l'ID (ex: ABO_5_17000 -> 5)
             c_id = ref.split('_')[1]
             chauffeur = Chauffeur.objects.get(id=c_id)
             chauffeur.enregistrer_paiement()
             return HttpResponse("OK")
     except Exception as e:
         print(f"Erreur Callback: {e}")
-    return HttpResponse("Erreur ou Ref Invalide", status=200)
+    return HttpResponse("Erreur ou Ref Invalide")
 
 def profil_chauffeur(request, chauffeur_id):
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         return JsonResponse(ChauffeurSerializer(chauffeur).data)
-    except:
+    except Exception:
         return JsonResponse({"error": "Inconnu"}, status=404)
 
 @csrf_exempt
@@ -83,12 +79,13 @@ def update_chauffeur(request, chauffeur_id):
             if "est_en_ligne" in data: chauffeur.est_en_ligne = data.get("est_en_ligne")
             chauffeur.save()
             return JsonResponse({"status": "success"})
-        except:
+        except Exception:
             return JsonResponse({"error": "Echec mise à jour"}, status=400)
     return JsonResponse({"error": "POST requis"}, status=405)
-# Django views.py
+
+# --- LA NOUVELLE VUE POUR LA LISTE DES TAXIS ---
 def liste_taxis_actifs(request):
-    # Filtre : abonnement actif ET switch "en ligne" activé
+    # On ne prend que ceux qui ont payé ET qui ont activé le bouton "En ligne"
     taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
     serializer = ChauffeurSerializer(taxis, many=True)
     return JsonResponse(serializer.data, safe=False)

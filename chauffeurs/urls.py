@@ -1,5 +1,12 @@
 from django.urls import path
-from .views import connexion_chauffeur, initier_paiement, paytech_callback, profil_chauffeur, update_chauffeur
+from .views import (
+    connexion_chauffeur, 
+    initier_paiement, 
+    paytech_callback, 
+    profil_chauffeur, 
+    update_chauffeur,
+    liste_taxis_actifs
+)
 
 urlpatterns = [
     path('connexion-chauffeur/', connexion_chauffeur, name='connexion_chauffeur'),
