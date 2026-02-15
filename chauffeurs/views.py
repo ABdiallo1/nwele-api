@@ -86,3 +86,9 @@ def update_chauffeur(request, chauffeur_id):
         except:
             return JsonResponse({"error": "Echec mise à jour"}, status=400)
     return JsonResponse({"error": "POST requis"}, status=405)
+# Django views.py
+def liste_taxis_actifs(request):
+    # Filtre : abonnement actif ET switch "en ligne" activé
+    taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
+    serializer = ChauffeurSerializer(taxis, many=True)
+    return JsonResponse(serializer.data, safe=False)
