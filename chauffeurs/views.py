@@ -1,114 +1,119 @@
-import os, requests, time
-from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
+import json
+import requests
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.core.management import call_command
-from django.contrib.auth.models import User
-from .models import Chauffeur
-from .serializers import ChauffeurSerializer
+from .models import Chauffeur  # Assure-toi que ton modèle s'appelle bien Chauffeur
 
-# --- RÉPARATION ---
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def force_migrate(request):
-    try:
-        call_command('migrate', interactive=False)
-        return HttpResponse("✅ Base de données à jour !")
-    except Exception as e:
-        return HttpResponse(f"❌ Erreur: {str(e)}", status=500)
+# --- CONFIGURATION PAYTECH ---
+PAYTECH_API_KEY = "TON_API_KEY"
+PAYTECH_API_SECRET = "TON_API_SECRET"
+PAYTECH_URL = "https://paytech.sn/api/payment/request-payment"
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def creer_admin_force(request):
-    try:
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser('admin', 'admin@nwele.com', 'Parser1234')
-            return HttpResponse("✅ Admin créé (admin / Parser1234)")
-        return HttpResponse("ℹ️ L'admin existe déjà.")
-    except Exception as e:
-        return HttpResponse(f"❌ Erreur: {str(e)}", status=500)
-
-# --- API ---
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def connexion_chauffeur(request):
-    try:
-        tel_brut = request.data.get('telephone', '')
-        tel = "".join(filter(str.isdigit, str(tel_brut)))
-        chauffeur = Chauffeur.objects.filter(telephone__icontains=tel).first()
-        if chauffeur:
-            serializer = ChauffeurSerializer(chauffeur)
-            return Response(serializer.data)
-        return Response({"error": "Chauffeur non trouvé"}, status=404)
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def ChauffeurProfilView(request, pk):
-    c = get_object_or_404(Chauffeur, pk=pk)
-    serializer = ChauffeurSerializer(c)
-    return Response(serializer.data)
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def ChauffeurListView(request):
-    chauffeurs = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
-    serializer = ChauffeurSerializer(chauffeurs, many=True)
-    return Response(serializer.data)
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def mettre_a_jour_chauffeur(request, pk):
-    chauffeur = get_object_or_404(Chauffeur, pk=pk)
-    chauffeur.est_en_ligne = request.data.get('est_en_ligne', chauffeur.est_en_ligne)
-    chauffeur.latitude = request.data.get('latitude', chauffeur.latitude)
-    chauffeur.longitude = request.data.get('longitude', chauffeur.longitude)
-    chauffeur.save()
-    return Response({"status": "Mis à jour"})
-
-# --- PAIEMENT ---
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def PaiementChauffeurView(request, chauffeur_id):
-    c = get_object_or_404(Chauffeur, id=chauffeur_id)
-    API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
-    API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
-    
-    payload = {
-        "item_name": "Abonnement Taxi NWELE",
-        "item_price": "10000",
-        "currency": "XOF",
-        "ref_command": f"NWELE-{c.id}-{int(time.time())}",
-        "env": "test",
-        "ipn_url": "https://nwele-api.onrender.com/api/paiement/callback/",
-        "success_url": "https://nwele-api.onrender.com/api/paiement-succes/",
-        "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
-    }
-    headers = {"API_KEY": API_KEY, "API_SECRET": API_SECRET, "Content-Type": "application/json"}
-
-    try:
-        r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers, timeout=15)
-        return Response(r.json())
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
-
+# 1. CONNEXION DU CHAUFFEUR
 @csrf_exempt
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def PaytechCallbackView(request):
-    ref = request.data.get('ref_command')
-    if ref and '-' in ref:
+def connexion_chauffeur(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        telephone = data.get("telephone")
+        
         try:
-            c_id = ref.split('-')[1]
-            c = Chauffeur.objects.get(id=c_id)
-            c.enregistrer_paiement()
-            return Response({"status": "ok"})
-        except: pass
-    return Response({"status": "error"}, status=400)
+            chauffeur = Chauffeur.objects.get(telephone=telephone)
+            return JsonResponse({
+                "id": chauffeur.id,
+                "nom_complet": chauffeur.nom_complet,
+                "telephone": chauffeur.telephone,
+                "est_actif": chauffeur.service  # 'service' est ton champ booléen pour l'abonnement
+            })
+        except Chauffeur.DoesNotExist:
+            return JsonResponse({"error": "Chauffeur non trouvé"}, status=404)
 
-def paiement_succes(request):
-    return HttpResponse("✅ Paiement validé ! Revenez dans l'app et cliquez sur ACTIVER.")
+# 2. INITIALISATION DU PAIEMENT PAYTECH
+@csrf_exempt
+def initier_paiement(request, chauffeur_id):
+    try:
+        chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+        
+        payload = {
+            "item_name": "Abonnement Mensuel N'WÉLÉ",
+            "item_price": "10000",
+            "currency": "XOF",
+            "ref_command": f"ABO_{chauffeur.id}_{json.dumps(chauffeur.id)}", # Référence unique
+            "command_name": f"Abonnement de {chauffeur.nom_complet}",
+            "env": "test", # Change en 'prod' pour les vrais paiements
+            "ipn_url": "https://nwele-api.onrender.com/api/paytech-callback/",
+            "success_url": "https://nwele-api.onrender.com/paiement-reussi/",
+            "cancel_url": "https://nwele-api.onrender.com/paiement-annule/",
+            "custom_field": json.dumps({"chauffeur_id": chauffeur.id})
+        }
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "API_KEY": PAYTECH_API_KEY,
+            "API_SECRET": PAYTECH_API_SECRET
+        }
+
+        response = requests.post(PAYTECH_URL, json=payload, headers=headers)
+        res_data = response.json()
+
+        if res_data.get("success") == 1:
+            return JsonResponse({"url": res_data["token_url"]})
+        else:
+            return JsonResponse({"error": "Erreur PayTech"}, status=400)
+
+    except Chauffeur.DoesNotExist:
+        return JsonResponse({"error": "Chauffeur introuvable"}, status=404)
+
+# 3. CALLBACK IPN (Appelé par PayTech après le paiement)
+@csrf_exempt
+def paytech_callback(request):
+    # PayTech envoie les données en POST via IPN
+    # C'est ici que le champ 'service' devient True
+    try:
+        # On peut récupérer l'ID envoyé dans custom_field ou ref_command
+        # Note: PayTech envoie les données en tant que Form Data en IPN
+        chauffeur_id = request.POST.get('item_id') # Ou analyse le custom_field
+        
+        # Exemple si tu as mis l'ID dans custom_field :
+        # custom_data = json.loads(request.POST.get('custom_field'))
+        # chauffeur_id = custom_data['chauffeur_id']
+
+        if chauffeur_id:
+            chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+            chauffeur.service = True  # L'abonnement est activé
+            chauffeur.save()
+            return HttpResponse("OK", status=200)
+            
+    except Exception as e:
+        print(f"Erreur Callback: {e}")
+        return HttpResponse("Erreur", status=400)
+
+# 4. PROFIL (Vérifié par Flutter pour la redirection automatique)
+def profil_chauffeur(request, chauffeur_id):
+    try:
+        chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+        return JsonResponse({
+            "id": chauffeur.id,
+            "nom_complet": chauffeur.nom_complet,
+            "est_actif": chauffeur.service, # Flutter surveille ce champ
+            "telephone": chauffeur.telephone
+        })
+    except Chauffeur.DoesNotExist:
+        return JsonResponse({"error": "Introuvable"}, status=404)
+
+# 5. MISE À JOUR GPS ET STATUT EN LIGNE
+@csrf_exempt
+def update_chauffeur(request, chauffeur_id):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+            
+            chauffeur.lat = data.get("lat")
+            chauffeur.lng = data.get("lng")
+            chauffeur.est_en_ligne = data.get("est_en_ligne")
+            chauffeur.save()
+            
+            return JsonResponse({"status": "success"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
