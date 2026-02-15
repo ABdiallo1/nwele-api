@@ -70,35 +70,27 @@ def initier_paiement(request, chauffeur_id):
 
 @csrf_exempt
 def paytech_callback(request):
-    """ Webhook (IPN) : Reçoit la confirmation de paiement de PayTech """
+    """ Webhook ultra-robuste pour PayTech """
+    # On récupère la référence peu importe si c'est du POST ou du JSON
+    ref = request.POST.get('ref_command') or json.loads(request.body).get('ref_command') if request.body else None
+    
+    print(f"Callback reçu ! Référence : {ref}")
+
     try:
-        # PayTech envoie les données en POST standard (form-data)
-        ref = request.POST.get('ref_command')
-        type_event = request.POST.get('type_event') # Utile pour vérifier si c'est un succès
-
-        if not ref:
-            # Sécurité si PayTech envoie du JSON
-            try:
-                data = json.loads(request.body)
-                ref = data.get('ref_command')
-            except:
-                pass
-
         if ref and "ABO_" in ref:
             chauffeur_id = ref.split('_')[1]
             chauffeur = Chauffeur.objects.get(id=chauffeur_id)
             
-            # Appelle la méthode dans models.py pour activer et ajouter 30 jours
+            # Validation immédiate
             chauffeur.enregistrer_paiement()
             
-            print(f"SUCCESS: Abonnement activé pour {chauffeur.nom_complet}")
-            return HttpResponse("OK", status=200)
-            
+            print(f"Succès : Chauffeur {chauffeur_id} activé.")
+            return HttpResponse("OK") # PayTech a besoin de lire "OK"
     except Exception as e:
-        print(f"ERREUR CALLBACK: {str(e)}")
-        return HttpResponse("Erreur interne", status=500)
+        print(f"Erreur lors du callback : {e}")
+        return HttpResponse("Erreur", status=200) # On renvoie 200 quand même pour ne pas bloquer PayTech
 
-    return HttpResponse("Référence ou format invalide", status=400)
+    return HttpResponse("Données manquantes", status=200)
 
 def profil_chauffeur(request, chauffeur_id):
     """ Retourne les infos à jour du chauffeur (utilisé par le Timer Flutter) """
