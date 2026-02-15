@@ -8,8 +8,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.management import call_command
 from django.contrib.auth.models import User
 from .models import Chauffeur
+from .serializers import ChauffeurSerializer
 
-# --- OUTILS DE RÉPARATION (À lancer depuis le navigateur si erreur 500) ---
+# --- RÉPARATION ---
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def force_migrate(request):
@@ -17,7 +18,7 @@ def force_migrate(request):
         call_command('migrate', interactive=False)
         return HttpResponse("✅ Base de données à jour !")
     except Exception as e:
-        return HttpResponse(f"❌ Erreur migration: {str(e)}", status=500)
+        return HttpResponse(f"❌ Erreur: {str(e)}", status=500)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -30,7 +31,7 @@ def creer_admin_force(request):
     except Exception as e:
         return HttpResponse(f"❌ Erreur: {str(e)}", status=500)
 
-# --- API CHAUFFEUR ---
+# --- API ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def connexion_chauffeur(request):
@@ -39,13 +40,8 @@ def connexion_chauffeur(request):
         tel = "".join(filter(str.isdigit, str(tel_brut)))
         chauffeur = Chauffeur.objects.filter(telephone__icontains=tel).first()
         if chauffeur:
-            return Response({
-                "id": chauffeur.id,
-                "nom_complet": chauffeur.nom_complet,
-                "est_actif": chauffeur.est_actif,
-                "est_en_ligne": chauffeur.est_en_ligne,
-                "jours_restants": chauffeur.jours_restants
-            })
+            serializer = ChauffeurSerializer(chauffeur)
+            return Response(serializer.data)
         return Response({"error": "Chauffeur non trouvé"}, status=404)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
@@ -54,13 +50,15 @@ def connexion_chauffeur(request):
 @permission_classes([AllowAny])
 def ChauffeurProfilView(request, pk):
     c = get_object_or_404(Chauffeur, pk=pk)
-    return Response({
-        "id": c.id, 
-        "nom_complet": c.nom_complet, 
-        "est_actif": c.est_actif,
-        "est_en_ligne": c.est_en_ligne,
-        "jours_restants": c.jours_restants
-    })
+    serializer = ChauffeurSerializer(c)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def ChauffeurListView(request):
+    chauffeurs = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
+    serializer = ChauffeurSerializer(chauffeurs, many=True)
+    return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -70,15 +68,13 @@ def mettre_a_jour_chauffeur(request, pk):
     chauffeur.latitude = request.data.get('latitude', chauffeur.latitude)
     chauffeur.longitude = request.data.get('longitude', chauffeur.longitude)
     chauffeur.save()
-    return Response({"status": "Mis à jour", "est_en_ligne": chauffeur.est_en_ligne})
+    return Response({"status": "Mis à jour"})
 
-# --- PAIEMENT PAYTECH (CORRIGÉ POUR ÉVITER L'ERREUR PHO) ---
+# --- PAIEMENT ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def PaiementChauffeurView(request, chauffeur_id):
     c = get_object_or_404(Chauffeur, id=chauffeur_id)
-    
-    # Clés API PayTech
     API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
     API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
     
@@ -92,22 +88,13 @@ def PaiementChauffeurView(request, chauffeur_id):
         "success_url": "https://nwele-api.onrender.com/api/paiement-succes/",
         "cancel_url": "https://nwele-api.onrender.com/api/paiement-succes/",
     }
-    
-    headers = {
-        "API_KEY": API_KEY,
-        "API_SECRET": API_SECRET,
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-    }
+    headers = {"API_KEY": API_KEY, "API_SECRET": API_SECRET, "Content-Type": "application/json"}
 
     try:
         r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers, timeout=15)
-        res_data = r.json()
-        if res_data.get('success') == 1:
-            return Response({"url": res_data['redirect_url']}, status=200)
-        return Response({"error": "Erreur PayTech", "details": res_data}, status=400)
+        return Response(r.json())
     except Exception as e:
-        return Response({"error": f"Connexion échouée: {str(e)}"}, status=500)
+        return Response({"error": str(e)}, status=500)
 
 @csrf_exempt
 @api_view(['POST'])
@@ -118,11 +105,10 @@ def PaytechCallbackView(request):
         try:
             c_id = ref.split('-')[1]
             c = Chauffeur.objects.get(id=c_id)
-            c.est_actif = True
-            c.save()
+            c.enregistrer_paiement()
             return Response({"status": "ok"})
         except: pass
     return Response({"status": "error"}, status=400)
 
 def paiement_succes(request):
-    return HttpResponse("✅ Paiement reçu ! Retournez dans l'app et cliquez sur ACTIVER.")
+    return HttpResponse("✅ Paiement validé ! Revenez dans l'app et cliquez sur ACTIVER.")
