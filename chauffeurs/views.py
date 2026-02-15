@@ -52,14 +52,11 @@ def initier_paiement(request, chauffeur_id):
 
 @csrf_exempt
 def paytech_callback(request):
-    """Cette fonction reçoit le signal de succès de PayTech"""
     try:
         ref = request.POST.get('ref_command', "")
         if "ABO_" in ref:
-            # On extrait l'ID du chauffeur depuis ABO_ID_TIMESTAMP
             c_id = ref.split('_')[1]
             chauffeur = Chauffeur.objects.get(id=c_id)
-            # On active son abonnement
             chauffeur.enregistrer_paiement()
             return HttpResponse("OK")
     except Exception as e:
@@ -71,7 +68,7 @@ def profil_chauffeur(request, chauffeur_id):
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         return JsonResponse(ChauffeurSerializer(chauffeur).data)
     except Exception:
-        return JsonResponse({"error": "Chauffeur introuvable"}, status=404)
+        return JsonResponse({"error": "Inconnu"}, status=404)
 
 @csrf_exempt
 def update_chauffeur(request, chauffeur_id):
@@ -89,7 +86,6 @@ def update_chauffeur(request, chauffeur_id):
     return JsonResponse({"error": "POST requis"}, status=405)
 
 def liste_taxis_actifs(request):
-    """Liste des taxis visibles par les clients"""
     taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
     serializer = ChauffeurSerializer(taxis, many=True)
     return JsonResponse(serializer.data, safe=False)
