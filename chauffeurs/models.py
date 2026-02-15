@@ -21,6 +21,7 @@ class Chauffeur(models.Model):
 
     def save(self, *args, **kwargs):
         if self.telephone:
+            # Garde uniquement les chiffres
             self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
         super().save(*args, **kwargs)
 

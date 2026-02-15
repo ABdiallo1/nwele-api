@@ -1,8 +1,10 @@
-from pathlib import Path
 import os
+from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-cle-nwele-2026'
+
+# IMPORTANT: DEBUG doit être False en production sur Render
 DEBUG = False 
 
 ALLOWED_HOSTS = ['*']
@@ -17,14 +19,14 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
-    'chauffeurs',
+    'chauffeurs',  # Ton application
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Pour les fichiers statiques
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # Indispensable pour Flutter
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -57,10 +59,15 @@ DATABASES = {
     }
 }
 
+# --- CONFIGURATION FICHIERS ---
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# WhiteNoise configuration pour Render
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# --- SECURITE & CORS ---
 CORS_ALLOW_ALL_ORIGINS = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
