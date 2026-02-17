@@ -71,3 +71,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # --- SECURITE & CORS ---
 CORS_ALLOW_ALL_ORIGINS = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Force la gestion des fichiers statiques même sans DEBUG
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True
