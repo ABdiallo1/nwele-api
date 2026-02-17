@@ -19,7 +19,7 @@ def connexion_chauffeur(request):
             if chauffeur:
                 return JsonResponse(ChauffeurSerializer(chauffeur).data)
             return JsonResponse({"error": "Chauffeur non trouvé"}, status=404)
-        except:
+        except Exception:
             return JsonResponse({"error": "Données invalides"}, status=400)
     return JsonResponse({"error": "POST requis"}, status=405)
 
@@ -30,7 +30,7 @@ def initier_paiement(request, chauffeur_id):
         phone = "".join(filter(str.isdigit, str(chauffeur.telephone)))
         payload = {
             "item_name": "Abonnement Taxi N'WÉLÉ",
-            "item_price": "100", 
+            "item_price": "10000", # Ajusté à 10.000 XOF selon ton image
             "currency": "XOF",
             "ref_command": f"ABO_{chauffeur.id}_{int(timezone.now().timestamp())}",
             "command_name": f"Paiement chauffeur {chauffeur.nom_complet}",
@@ -48,25 +48,33 @@ def initier_paiement(request, chauffeur_id):
 
 @csrf_exempt
 def paytech_callback(request):
-    ref = request.POST.get('ref_command')
-    if not ref and request.body:
-        try:
-            ref = json.loads(request.body).get('ref_command')
-        except: pass
-    if ref and "ABO_" in ref:
+    """ Gère la notification de paiement de PayTech """
+    data = {}
+    if request.method == "POST":
+        # PayTech envoie parfois en POST classique ou en JSON
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+
+    ref = data.get('ref_command')
+    type_event = data.get('type_event') # Important pour vérifier le succès
+
+    if ref and "ABO_" in ref and type_event == "sale_complete":
         try:
             chauffeur_id = ref.split('_')[1]
             chauffeur = Chauffeur.objects.get(id=chauffeur_id)
             chauffeur.enregistrer_paiement()
             return HttpResponse("OK")
-        except: pass
-    return HttpResponse("Invalide", status=200)
+        except Exception:
+            pass
+    return HttpResponse("Invalide ou Échoué", status=200)
 
 def profil_chauffeur(request, chauffeur_id):
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         return JsonResponse(ChauffeurSerializer(chauffeur).data)
-    except:
+    except Exception:
         return JsonResponse({"error": "Chauffeur non trouvé"}, status=404)
 
 @csrf_exempt
@@ -75,15 +83,20 @@ def update_chauffeur(request, chauffeur_id):
         try:
             data = json.loads(request.body)
             chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+            # Mise à jour des champs autorisés
             if "latitude" in data: chauffeur.latitude = data["latitude"]
             if "longitude" in data: chauffeur.longitude = data["longitude"]
             if "est_en_ligne" in data: chauffeur.est_en_ligne = data["est_en_ligne"]
+            if "plaque_immatriculation" in data: chauffeur.plaque_immatriculation = data["plaque_immatriculation"]
+            
             chauffeur.save()
-            return JsonResponse({"status": "success"})
-        except:
+            return JsonResponse({"status": "success", "data": ChauffeurSerializer(chauffeur).data})
+        except Exception:
             return JsonResponse({"error": "Erreur mise à jour"}, status=400)
     return JsonResponse({"error": "POST requis"}, status=405)
 
 def liste_taxis_actifs(request):
+    # On ne montre que ceux qui ont payé ET qui sont en ligne
     taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
-    return JsonResponse(ChauffeurSerializer(taxis, many=True).data, safe=False)
+    serializer = ChauffeurSerializer(taxis, many=True)
+    return JsonResponse(serializer.data, safe=False)
