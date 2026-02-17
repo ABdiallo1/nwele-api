@@ -4,7 +4,6 @@ from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    # Liste des colonnes
     list_display = (
         'apercu_permis', 
         'apercu_voiture', 
@@ -17,41 +16,30 @@ class ChauffeurAdmin(admin.ModelAdmin):
     
     list_filter = ('est_actif', 'est_en_ligne', 'date_expiration')
     search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
-    
-    fieldsets = (
-        ('Identité', {'fields': ('nom_complet', 'telephone', 'plaque_immatriculation')}),
-        ('Documents', {'fields': ('photo_permis', 'photo_voiture')}),
-        ('Statut Abonnement', {'fields': ('est_actif', 'date_expiration')}),
-        ('Géolocalisation & Service', {'fields': ('est_en_ligne', 'latitude', 'longitude')}),
-    )
 
-    # Sécurité : on vérifie si le fichier existe avant d'appeler .url
     def apercu_permis(self, obj):
         if obj.photo_permis and hasattr(obj.photo_permis, 'url'):
-            return format_html('<img src="{}" style="width: 45px; height: 45px; border-radius: 5px; object-fit: cover;" />', obj.photo_permis.url)
-        return "Pas de photo"
+            return format_html('<img src="{}" style="width: 40px; height: 40px; border-radius: 4px; object-fit: cover;" />', obj.photo_permis.url)
+        return "N/A"
     apercu_permis.short_description = 'Permis'
 
     def apercu_voiture(self, obj):
         if obj.photo_voiture and hasattr(obj.photo_voiture, 'url'):
-            return format_html('<img src="{}" style="width: 45px; height: 45px; border-radius: 5px; object-fit: cover;" />', obj.photo_voiture.url)
-        return "Pas de photo"
+            return format_html('<img src="{}" style="width: 40px; height: 40px; border-radius: 4px; object-fit: cover;" />', obj.photo_voiture.url)
+        return "N/A"
     apercu_voiture.short_description = 'Voiture'
 
     def statut_abonnement(self, obj):
-        if obj.est_actif:
-            return format_html('<b style="color: white; background: green; padding: 2px 8px; border-radius: 5px;">✔ ACTIF</b>')
-        return format_html('<b style="color: white; background: #d33; padding: 2px 8px; border-radius: 5px;">✘ EXPIRÉ</b>')
+        couleur = "green" if obj.est_actif else "red"
+        texte = "ACTIF" if obj.est_actif else "INACTIF"
+        return format_html('<b style="color: {};">{}</b>', couleur, texte)
     statut_abonnement.short_description = 'Abonnement'
 
     def jours_restants_display(self, obj):
-        jours = obj.jours_restants
-        couleur = "#28a745" if jours > 5 else "#dc3545"
-        return format_html('<span style="color: {}; font-weight: bold;">{} jours</span>', couleur, jours)
-    jours_restants_display.short_description = 'Reste'
+        return f"{obj.jours_restants} jours"
+    jours_restants_display.short_description = 'Repos'
 
     def statut_service(self, obj):
-        if obj.est_en_ligne:
-            return format_html('<span style="background: #28a745; color: white; padding: 3px 12px; border-radius: 12px; font-size: 10px;">EN LIGNE</span>')
-        return format_html('<span style="background: #6c757d; color: white; padding: 3px 12px; border-radius: 12px; font-size: 10px;">HORS LIGNE</span>')
-    statut_service.short_description = 'Service'
+        icon = "✅" if obj.est_en_ligne else "❌"
+        return format_html('<span>{}</span>', icon)
+    statut_service.short_description = 'En Service'
