@@ -3,20 +3,16 @@ from django.utils import timezone
 from datetime import timedelta
 
 class Chauffeur(models.Model):
-    # --- Identité ---
     nom_complet = models.CharField(max_length=100, verbose_name="Nom Complet")
     telephone = models.CharField(max_length=20, unique=True, verbose_name="Téléphone")
     plaque_immatriculation = models.CharField(max_length=20, blank=True, null=True, verbose_name="Plaque")
     
-    # --- Documents ---
     photo_permis = models.FileField(upload_to='permis/', null=True, blank=True, verbose_name="Photo du Permis")
     photo_voiture = models.FileField(upload_to='voitures/', null=True, blank=True, verbose_name="Photo de la Voiture")
     
-    # --- États ---
     est_actif = models.BooleanField(default=False, verbose_name="Abonnement Actif")
     est_en_ligne = models.BooleanField(default=False, verbose_name="En Service")
     
-    # --- Dates et Géo ---
     date_expiration = models.DateTimeField(null=True, blank=True, verbose_name="Expire le")
     latitude = models.FloatField(default=0.0)
     longitude = models.FloatField(default=0.0)
@@ -27,18 +23,13 @@ class Chauffeur(models.Model):
         verbose_name_plural = "Chauffeurs"
 
     def save(self, *args, **kwargs):
-        # Nettoyage automatique du numéro de téléphone
         if self.telephone:
             self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
-        
-        # Sécurité : désactivation si la date est dépassée
         if self.date_expiration and self.date_expiration < timezone.now():
             self.est_actif = False
-            
         super().save(*args, **kwargs)
 
     def enregistrer_paiement(self):
-        """ Logique d'ajout de 30 jours suite à un paiement réussi """
         maintenant = timezone.now()
         if self.date_expiration and self.date_expiration > maintenant:
             self.date_expiration += timedelta(days=30)
@@ -49,7 +40,6 @@ class Chauffeur(models.Model):
 
     @property
     def jours_restants(self):
-        """ Calcul dynamique pour l'affichage Admin et API """
         if self.date_expiration:
             diff = self.date_expiration - timezone.now()
             return max(0, diff.days)
