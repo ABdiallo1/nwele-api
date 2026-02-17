@@ -4,11 +4,13 @@ from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
+    # Ajout de 'plaque_immatriculation' dans la liste
     list_display = (
         'apercu_permis', 
         'apercu_voiture', 
         'nom_complet', 
         'telephone', 
+        'plaque_immatriculation',  # <--- Ajouté ici
         'statut_abonnement', 
         'jours_restants_display',
         'statut_service'
@@ -16,6 +18,14 @@ class ChauffeurAdmin(admin.ModelAdmin):
     
     list_filter = ('est_actif', 'est_en_ligne', 'date_expiration')
     search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
+    
+    # Organisation des champs lors de l'édition d'un chauffeur
+    fieldsets = (
+        ('Identité', {'fields': ('nom_complet', 'telephone', 'plaque_immatriculation')}),
+        ('Documents', {'fields': ('photo_permis', 'photo_voiture')}),
+        ('Statut Abonnement', {'fields': ('est_actif', 'date_expiration')}),
+        ('Géolocalisation & Service', {'fields': ('est_en_ligne', 'latitude', 'longitude')}),
+    )
 
     def apercu_permis(self, obj):
         if obj.photo_permis and hasattr(obj.photo_permis, 'url'):
