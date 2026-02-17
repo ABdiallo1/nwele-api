@@ -4,7 +4,7 @@ from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    # Correction de list_display pour correspondre exactement à tes modèles
+    # Liste des colonnes
     list_display = (
         'apercu_permis', 
         'apercu_voiture', 
@@ -25,6 +25,7 @@ class ChauffeurAdmin(admin.ModelAdmin):
         ('Géolocalisation & Service', {'fields': ('est_en_ligne', 'latitude', 'longitude')}),
     )
 
+    # Sécurité : on vérifie si le fichier existe avant d'appeler .url
     def apercu_permis(self, obj):
         if obj.photo_permis and hasattr(obj.photo_permis, 'url'):
             return format_html('<img src="{}" style="width: 45px; height: 45px; border-radius: 5px; object-fit: cover;" />', obj.photo_permis.url)

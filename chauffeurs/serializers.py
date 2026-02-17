@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Chauffeur
 
 class ChauffeurSerializer(serializers.ModelSerializer):
-    # Champ calculé dans le modèle (property)
+    # Utilise la property définie dans le modèle pour calculer les jours
     jours_restants = serializers.ReadOnlyField()
 
     class Meta:
@@ -11,7 +11,7 @@ class ChauffeurSerializer(serializers.ModelSerializer):
             'id', 
             'nom_complet', 
             'telephone', 
-            'plaque_immatriculation', # Assure la visibilité de la plaque
+            'plaque_immatriculation', 
             'photo_permis', 
             'photo_voiture', 
             'est_actif', 
@@ -21,15 +21,3 @@ class ChauffeurSerializer(serializers.ModelSerializer):
             'longitude', 
             'jours_restants'
         ]
-
-    def get_photo_permis(self, obj):
-        """ Retourne l'URL complète de la photo du permis """
-        if obj.photo_permis:
-            return obj.photo_permis.url
-        return None
-
-    def get_photo_voiture(self, obj):
-        """ Retourne l'URL complète de la photo de la voiture """
-        if obj.photo_voiture:
-            return obj.photo_voiture.url
-        return None
