@@ -27,34 +27,40 @@ def connexion_chauffeur(request):
 
 @csrf_exempt
 def initier_paiement(request, chauffeur_id):
-    """ Génère le lien de paiement FedaPay """
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         
+        # Nettoyage du numéro : on garde uniquement les chiffres
+        tel_propre = "".join(filter(str.isdigit, str(chauffeur.telephone)))
+        
         payload = {
             "description": f"Abonnement N'WÉLÉ - {chauffeur.nom_complet}",
-            "amount": 100, # Montant de test
+            "amount": 100,
             "currency": {"iso": "XOF"},
             "callback_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
             "customer": {
                 "firstname": chauffeur.nom_complet,
                 "lastname": "Chauffeur",
-                "email": f"taxi{chauffeur.id}@nwele.com",
-                "phone_number": {"number": chauffeur.telephone, "country": "ml"}
+                "email": "NW-test@nwele.com", # Email fixe pour le test
+                "phone_number": {"number": tel_propre, "country": "ml"}
             }
         }
         
         headers = {"Authorization": f"Bearer {FEDAPAY_API_KEY}", "Content-Type": "application/json"}
         
-        # 1. Création de la transaction
         r = requests.post(FEDAPAY_URL, json=payload, headers=headers)
+        
+        # DEBUG : Si ça échoue, on renvoie l'erreur réelle de FedaPay pour comprendre
         if r.status_code not in [200, 201]:
-            return JsonResponse({"error": "Erreur lors de la création FedaPay"}, status=400)
+            return JsonResponse({
+                "error": "FedaPay Reject", 
+                "details": r.json() # Ceci nous dira pourquoi FedaPay refuse
+            }, status=400)
             
         res_data = r.json()
-        trans_id = res_data['v1/transaction']['id']
+        # Correction ici : FedaPay v1 utilise parfois une structure différente
+        trans_id = res_data.get('v1/transaction', res_data).get('id')
         
-        # 2. Génération du lien de redirection (Token)
         token_r = requests.post(f"{FEDAPAY_URL}/{trans_id}/token", headers=headers)
         return JsonResponse({"url": token_r.json()['url']})
             
