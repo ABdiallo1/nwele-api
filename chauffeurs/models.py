@@ -23,8 +23,10 @@ class Chauffeur(models.Model):
         verbose_name_plural = "Chauffeurs"
 
     def save(self, *args, **kwargs):
-        if self.telephone:
+        # On ne nettoie que si ce n'est pas déjà un format international
+        if self.telephone and not str(self.telephone).startswith('+'):
             self.telephone = "".join(filter(str.isdigit, str(self.telephone)))
+        
         if self.date_expiration and self.date_expiration < timezone.now():
             self.est_actif = False
         super().save(*args, **kwargs)
