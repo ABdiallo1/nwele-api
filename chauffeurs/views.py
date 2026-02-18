@@ -1,57 +1,115 @@
-import json
 import requests
+import json
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
 from .models import Chauffeur
 from .serializers import ChauffeurSerializer
 
-PAYTECH_API_KEY = "4708a871b0d511a24050685ff7abfab2e68c69032e1b3d2913647ef46ed656f2"
-PAYTECH_API_SECRET = "17cb57b72f679c40ab29eedfcd485bea81582adb770882a78525abfdc57e6784"
+# CONFIGURATION FEDAPAY
+# Remplace par ta vraie clé sk_sandbox_...
+FEDAPAY_API_KEY = "sk_sandbox_JVBu9SjQL5rl3Ka4_muQ0J4h" 
+FEDAPAY_URL = "https://api.fedapay.com/v1/transactions"
+
+@csrf_exempt
+def connexion_chauffeur(request):
+    """ Authentification du chauffeur par téléphone """
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            tel = "".join(filter(str.isdigit, str(data.get("telephone", ""))))
+            chauffeur = Chauffeur.objects.filter(telephone=tel).first()
+            if chauffeur:
+                return JsonResponse(ChauffeurSerializer(chauffeur).data)
+            return JsonResponse({"error": "Chauffeur non trouvé"}, status=404)
+        except Exception:
+            return JsonResponse({"error": "Données invalides"}, status=400)
+    return JsonResponse({"error": "POST requis"}, status=405)
 
 @csrf_exempt
 def initier_paiement(request, chauffeur_id):
+    """ Génère le lien de paiement FedaPay """
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
-        phone = "".join(filter(str.isdigit, str(chauffeur.telephone)))
+        
         payload = {
-            "item_name": "Abonnement Taxi N'WÉLÉ",
-            "item_price": "100", # Prix de test
-            "currency": "XOF",
-            "ref_command": f"ABO_{chauffeur.id}_{int(timezone.now().timestamp())}",
-            "command_name": f"Paiement chauffeur {chauffeur.nom_complet}",
-            "env": "test", # <--- CHANGÉ EN TEST pour éviter l'erreur de production
-            "ipn_url": "https://nwele-api.onrender.com/api/paytech-callback/",
-            "success_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
-            "cancel_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
-            "customer_phone": phone,
+            "description": f"Abonnement N'WÉLÉ - {chauffeur.nom_complet}",
+            "amount": 100, # Montant de test
+            "currency": {"iso": "XOF"},
+            "callback_url": f"https://nwele-api.onrender.com/api/profil-chauffeur/{chauffeur.id}/",
+            "customer": {
+                "firstname": chauffeur.nom_complet,
+                "lastname": "Chauffeur",
+                "email": f"taxi{chauffeur.id}@nwele.com",
+                "phone_number": {"number": chauffeur.telephone, "country": "ml"}
+            }
         }
-        headers = {"API_KEY": PAYTECH_API_KEY, "API_SECRET": PAYTECH_API_SECRET}
-        r = requests.post("https://paytech.sn/api/payment/request-payment", json=payload, headers=headers)
-        return JsonResponse(r.json())
+        
+        headers = {"Authorization": f"Bearer {FEDAPAY_API_KEY}", "Content-Type": "application/json"}
+        
+        # 1. Création de la transaction
+        r = requests.post(FEDAPAY_URL, json=payload, headers=headers)
+        if r.status_code not in [200, 201]:
+            return JsonResponse({"error": "Erreur lors de la création FedaPay"}, status=400)
+            
+        res_data = r.json()
+        trans_id = res_data['v1/transaction']['id']
+        
+        # 2. Génération du lien de redirection (Token)
+        token_r = requests.post(f"{FEDAPAY_URL}/{trans_id}/token", headers=headers)
+        return JsonResponse({"url": token_r.json()['url']})
+            
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
 @csrf_exempt
-def paytech_callback(request):
-    """ Gère la validation automatique de l'abonnement """
-    data = {}
+def fedapay_webhook(request):
+    """ 
+    URL de notification (IPN) : Active l'abonnement quand le paiement est fini.
+    À configurer dans ton Dashboard FedaPay (URL de notification).
+    """
     if request.method == "POST":
-        if request.content_type == 'application/json':
-            data = json.loads(request.body)
-        else:
-            data = request.POST.dict()
-
-    ref = data.get('ref_command')
-    # En mode test, PayTech peut envoyer des types d'événements différents
-    if ref and "ABO_" in ref:
         try:
-            chauffeur_id = ref.split('_')[1]
-            chauffeur = Chauffeur.objects.get(id=chauffeur_id)
-            chauffeur.enregistrer_paiement()
-            return HttpResponse("OK")
+            data = json.loads(request.body)
+            # FedaPay envoie l'événement 'transaction.approved'
+            if data.get('event') == 'transaction.approved':
+                transaction = data.get('entity', {})
+                # On récupère le téléphone du client pour retrouver le chauffeur
+                phone = transaction.get('customer', {}).get('phone_number', {}).get('number')
+                chauffeur = Chauffeur.objects.filter(telephone=phone).first()
+                if chauffeur:
+                    chauffeur.enregistrer_paiement()
+                    return HttpResponse("OK")
         except Exception:
             pass
-    return HttpResponse("Callback Reçu")
+    return HttpResponse("Invalide", status=200)
 
-# ... (garder les autres fonctions connexion_chauffeur, profil_chauffeur, etc.)
+def profil_chauffeur(request, chauffeur_id):
+    """ Renvoie les infos d'un chauffeur """
+    try:
+        chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+        return JsonResponse(ChauffeurSerializer(chauffeur).data)
+    except Exception:
+        return JsonResponse({"error": "Chauffeur non trouvé"}, status=404)
+
+@csrf_exempt
+def update_chauffeur(request, chauffeur_id):
+    """ Mise à jour GPS, Statut et Plaque depuis Flutter """
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+            if "latitude" in data: chauffeur.latitude = data["latitude"]
+            if "longitude" in data: chauffeur.longitude = data["longitude"]
+            if "est_en_ligne" in data: chauffeur.est_en_ligne = data["est_en_ligne"]
+            if "plaque_immatriculation" in data: chauffeur.plaque_immatriculation = data["plaque_immatriculation"]
+            
+            chauffeur.save()
+            return JsonResponse({"status": "success"})
+        except Exception:
+            return JsonResponse({"error": "Erreur lors de la mise à jour"}, status=400)
+    return JsonResponse({"error": "POST requis"}, status=405)
+
+def liste_taxis_actifs(request):
+    """ Pour l'écran carte des clients """
+    taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
+    return JsonResponse(ChauffeurSerializer(taxis, many=True).data, safe=False)
