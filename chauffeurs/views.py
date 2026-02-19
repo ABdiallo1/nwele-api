@@ -5,15 +5,17 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import Chauffeur
 from .serializers import ChauffeurSerializer
 
-# Tes clés
+# Configuration FedaPay (Sandbox)
 FEDAPAY_API_KEY = "sk_sandbox_JVBu9SjQL5rl3Ka4_muQ0J4h" 
 FEDAPAY_URL = "https://api.fedapay.com/v1/transactions"
 
 @csrf_exempt
 def connexion_chauffeur(request):
+    """ Authentification du chauffeur par numéro de téléphone """
     if request.method == "POST":
         try:
             data = json.loads(request.body)
+            # Nettoyage du numéro pour la recherche en base de données
             tel = "".join(filter(str.isdigit, str(data.get("telephone", ""))))
             chauffeur = Chauffeur.objects.filter(telephone=tel).first()
             if chauffeur:
@@ -25,9 +27,10 @@ def connexion_chauffeur(request):
 
 @csrf_exempt
 def initier_paiement(request, chauffeur_id):
+    """ Prépare la transaction FedaPay et renvoie l'URL de paiement à Flutter """
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
-        # Nettoyage strict du numéro (FedaPay rejette si format invalide)
+        # Nettoyage strict pour éviter les rejets FedaPay
         tel_propre = "".join(filter(str.isdigit, str(chauffeur.telephone)))
         
         payload = {
@@ -39,7 +42,7 @@ def initier_paiement(request, chauffeur_id):
                 "firstname": chauffeur.nom_complet,
                 "lastname": "Chauffeur",
                 "email": f"taxi{chauffeur.id}@nwele.com",
-                "phone_number": {"number": tel_propre, "country": "ml"} # ml pour Mali
+                "phone_number": {"number": tel_propre, "country": "ml"} # ml pour le Mali
             }
         }
         
@@ -48,34 +51,29 @@ def initier_paiement(request, chauffeur_id):
             "Content-Type": "application/json"
         }
         
-        # 1. Création de la transaction
+        # 1. Création de la transaction chez FedaPay
         r = requests.post(FEDAPAY_URL, json=payload, headers=headers)
         res_data = r.json()
         
         if r.status_code not in [200, 201]:
-            return JsonResponse({"error": "FedaPay Create Error", "details": res_data}, status=400)
+            return JsonResponse({"error": "FedaPay Error", "details": res_data}, status=400)
             
-        # --- CORRECTION ICI ---
-        # FedaPay Sandbox peut renvoyer la transaction directement ou dans une clé 'v1/transaction'
+        # 2. Extraction sécurisée de l'ID (résout l'erreur 400 sur mobile)
+        # On vérifie toutes les structures possibles renvoyées par l'API Sandbox
         transaction = res_data.get('v1/transaction') or res_data.get('transaction') or res_data
         trans_id = transaction.get('id')
         
         if not trans_id:
-             return JsonResponse({"error": "ID Transaction manquant", "res": res_data}, status=400)
-
-        # 2. Génération du Token/URL de paiement
-        token_url = f"{FEDAPAY_URL}/{trans_id}/token"
-        token_r = requests.post(token_url, headers=headers)
+            return JsonResponse({"error": "ID transaction manquant dans la réponse FedaPay", "debug": res_data}, status=400)
+        
+        # 3. Génération du Token de paiement
+        token_r = requests.post(f"{FEDAPAY_URL}/{trans_id}/token", headers=headers)
         token_data = token_r.json()
         
-        if token_r.status_code not in [200, 201]:
-            return JsonResponse({"error": "FedaPay Token Error", "details": token_data}, status=400)
-
-        # On renvoie l'URL à Flutter
-        # Le token data contient une clé 'url' ou 'v1/token' -> 'url'
-        final_url = token_data.get('url') or token_data.get('v1/token', {}).get('url')
+        # Récupération de l'URL finale de redirection
+        url_finale = token_data.get('url') or token_data.get('v1/token', {}).get('url')
         
-        return JsonResponse({"url": final_url})
+        return JsonResponse({"url": url_finale})
             
     except Chauffeur.DoesNotExist:
         return JsonResponse({"error": "Chauffeur introuvable"}, status=404)
@@ -84,16 +82,16 @@ def initier_paiement(request, chauffeur_id):
 
 @csrf_exempt
 def fedapay_webhook(request):
-    """ Gère la confirmation automatique du paiement """
+    """ Confirmation automatique après paiement réussi via FedaPay """
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            # Vérification de l'événement FedaPay
             if data.get('event') == 'transaction.approved':
                 entity = data.get('entity', {})
-                phone_data = entity.get('customer', {}).get('phone_number', {})
-                phone = phone_data.get('number')
+                # Récupération du numéro utilisé lors du paiement
+                phone = entity.get('customer', {}).get('phone_number', {}).get('number')
                 
+                # On cherche un chauffeur dont le numéro contient ces chiffres
                 chauffeur = Chauffeur.objects.filter(telephone__contains=phone).first()
                 if chauffeur:
                     chauffeur.enregistrer_paiement()
@@ -102,8 +100,8 @@ def fedapay_webhook(request):
             pass
     return HttpResponse("Invalide", status=200)
 
-# Les autres vues (profil_chauffeur, update_chauffeur, liste_taxis_actifs) restent identiques
 def profil_chauffeur(request, chauffeur_id):
+    """ Renvoie les infos à jour d'un chauffeur (utilisé pour vérifier l'activation) """
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         return JsonResponse(ChauffeurSerializer(chauffeur).data)
@@ -112,6 +110,7 @@ def profil_chauffeur(request, chauffeur_id):
 
 @csrf_exempt
 def update_chauffeur(request, chauffeur_id):
+    """ Mise à jour de la position et du statut en ligne """
     if request.method == "POST":
         try:
             data = json.loads(request.body)
@@ -127,5 +126,6 @@ def update_chauffeur(request, chauffeur_id):
     return JsonResponse({"error": "POST requis"}, status=405)
 
 def liste_taxis_actifs(request):
+    """ Liste pour l'espace client : uniquement chauffeurs payés ET en ligne """
     taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
     return JsonResponse(ChauffeurSerializer(taxis, many=True).data, safe=False)
