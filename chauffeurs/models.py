@@ -6,8 +6,11 @@ class Chauffeur(models.Model):
     nom_complet = models.CharField(max_length=100)
     telephone = models.CharField(max_length=20, unique=True)
     plaque_immatriculation = models.CharField(max_length=20, blank=True, null=True)
+    
+    # REMPLACÉ ImageField par FileField pour éviter l'erreur Pillow
     photo_permis = models.FileField(upload_to='permis/', null=True, blank=True)
     photo_voiture = models.FileField(upload_to='voitures/', null=True, blank=True)
+    
     est_actif = models.BooleanField(default=False)
     est_en_ligne = models.BooleanField(default=False)
     date_expiration = models.DateTimeField(null=True, blank=True)
