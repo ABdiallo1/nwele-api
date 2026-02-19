@@ -3,21 +3,19 @@ import requests
 import json
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.conf import settings
 from .models import Chauffeur
 from .serializers import ChauffeurSerializer
 
-# Récupération de la clé depuis Render ou valeur par défaut
+# Récupération dynamique de la clé (Render ou Sandbox locale)
 FEDAPAY_API_KEY = os.environ.get('FEDAPAY_API_KEY', 'sk_sandbox_JVBu9SjQL5rl3Ka4_muQ0J4h')
 FEDAPAY_URL = "https://api.fedapay.com/v1/transactions"
 
 @csrf_exempt
 def connexion_chauffeur(request):
-    """ Authentification par téléphone lors de l'ouverture de l'app """
+    """ Authentification initiale du chauffeur """
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            # Nettoyage pour ne garder que les chiffres
             tel = "".join(filter(str.isdigit, str(data.get("telephone", ""))))
             chauffeur = Chauffeur.objects.filter(telephone=tel).first()
             if chauffeur:
@@ -29,10 +27,9 @@ def connexion_chauffeur(request):
 
 @csrf_exempt
 def initier_paiement(request, chauffeur_id):
-    """ Prépare la transaction FedaPay pour Flutter """
+    """ Prépare la transaction avec la clé API de Render """
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
-        # Nettoyage du téléphone pour éviter les rejets FedaPay
         tel_propre = "".join(filter(str.isdigit, str(chauffeur.telephone)))
         
         payload = {
@@ -56,57 +53,60 @@ def initier_paiement(request, chauffeur_id):
         # 1. Création de la transaction
         r = requests.post(FEDAPAY_URL, json=payload, headers=headers)
         
+        # Gestion des erreurs d'authentification (401/403)
         if r.status_code not in [200, 201]:
-            # En cas d'erreur d'authentification, on renvoie les détails FedaPay
-            return JsonResponse({"error": "Erreur d'authentification FedaPay", "details": r.json()}, status=r.status_code)
+            print(f"ERREUR FEDAPAY LOG: {r.status_code} - {r.text}")
+            return JsonResponse({
+                "error": "Authentification FedaPay échouée", 
+                "details": r.json()
+            }, status=r.status_code)
             
         res_data = r.json()
         transaction = res_data.get('v1/transaction') or res_data.get('transaction') or res_data
         trans_id = transaction.get('id')
         
-        # 2. Génération du Token de paiement (URL checkout)
+        # 2. Demande du Token pour l'URL de paiement
         token_r = requests.post(f"{FEDAPAY_URL}/{trans_id}/token", headers=headers)
         token_data = token_r.json()
         
-        # Extraction de l'URL pour la WebView Flutter
         url_paiement = token_data.get('url') or token_data.get('v1/token', {}).get('url')
         
         return JsonResponse({"url": url_paiement})
             
+    except Chauffeur.DoesNotExist:
+        return JsonResponse({"error": "Chauffeur introuvable"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
 @csrf_exempt
 def fedapay_webhook(request):
-    """ Reçoit la confirmation de paiement de FedaPay """
+    """ Webhook pour l'activation automatique après paiement """
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            # Vérification du succès de la transaction
             if data.get('event') == 'transaction.approved':
                 entity = data.get('entity', {})
                 phone = entity.get('customer', {}).get('phone_number', {}).get('number')
                 
-                # Activation du chauffeur correspondant
                 chauffeur = Chauffeur.objects.filter(telephone__contains=phone).first()
                 if chauffeur:
                     chauffeur.enregistrer_paiement()
                     return HttpResponse("OK")
         except Exception:
             pass
-    return HttpResponse("Invalide", status=200)
+    return HttpResponse("Signal ignoré", status=200)
 
 def profil_chauffeur(request, chauffeur_id):
-    """ Retourne les données à jour (pour vérifier si est_actif est passé à True) """
+    """ Renvoie les données profil pour Flutter """
     try:
         chauffeur = Chauffeur.objects.get(id=chauffeur_id)
         return JsonResponse(ChauffeurSerializer(chauffeur).data)
     except Exception:
-        return JsonResponse({"error": "Chauffeur non trouvé"}, status=404)
+        return JsonResponse({"error": "Profil introuvable"}, status=404)
 
 @csrf_exempt
 def update_chauffeur(request, chauffeur_id):
-    """ Mise à jour GPS et statut en ligne """
+    """ Mise à jour position et statut en ligne """
     if request.method == "POST":
         try:
             data = json.loads(request.body)
@@ -117,10 +117,10 @@ def update_chauffeur(request, chauffeur_id):
             chauffeur.save()
             return JsonResponse({"status": "success"})
         except Exception:
-            return JsonResponse({"error": "Erreur mise à jour"}, status=400)
+            return JsonResponse({"error": "Erreur lors de la mise à jour"}, status=400)
     return JsonResponse({"error": "POST requis"}, status=405)
 
 def liste_taxis_actifs(request):
-    """ Pour les clients : voir les taxis qui ont payé ET sont en ligne """
+    """ Liste des taxis visibles par les clients """
     taxis = Chauffeur.objects.filter(est_actif=True, est_en_ligne=True)
     return JsonResponse(ChauffeurSerializer(taxis, many=True).data, safe=False)
