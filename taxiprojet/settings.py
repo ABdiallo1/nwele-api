@@ -2,10 +2,9 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'django-insecure-cle-nwele-2026'
-DEBUG = False 
+SECRET_KEY = 'django-insecure-votre-cle-ici'
+DEBUG = True # Mettez à False en production sur Render
 ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS = ['https://nwele-api.onrender.com']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -13,28 +12,30 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'whitenoise.runserver_nostatic',
     'django.contrib.staticfiles',
     'rest_framework',
-    'corsheaders',
+    'corsheaders', # Requis pour Flutter
     'chauffeurs',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', # Doit être en haut
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+ROOT_URLCONF = 'taxiprojet.urls'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [], # Tu peux laisser vide si tu n'as pas de dossiers templates personnalisés
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -46,7 +47,8 @@ TEMPLATES = [
         },
     },
 ]
-ROOT_URLCONF = 'taxiprojet.urls'
+
+WSGI_APPLICATION = 'taxiprojet.wsgi.application'
 
 DATABASES = {
     'default': {
@@ -55,12 +57,14 @@ DATABASES = {
     }
 }
 
+# Configuration CORS pour Flutter
+CORS_ALLOW_ALL_ORIGINS = True 
+
+# Fichiers Statiques et Médias (Photos de permis/voitures)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-CORS_ALLOW_ALL_ORIGINS = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
