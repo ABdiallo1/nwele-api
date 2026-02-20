@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'django-insecure-votre-cle-ici'
-DEBUG = True # Mettez à False en production sur Render
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-votre-cle-par-defaut')
+DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
@@ -14,12 +14,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'corsheaders', # Requis pour Flutter
+    'corsheaders', # Pour Flutter
     'chauffeurs',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware', # Doit être en haut
+    'corsheaders.middleware.CorsMiddleware', # Indispensable
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -32,6 +32,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'taxiprojet.urls'
 
+# Configuration TEMPLATES pour l'admin
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -57,13 +58,11 @@ DATABASES = {
     }
 }
 
-# Configuration CORS pour Flutter
+# Autoriser toutes les origines pour Flutter
 CORS_ALLOW_ALL_ORIGINS = True 
 
-# Fichiers Statiques et Médias (Photos de permis/voitures)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
