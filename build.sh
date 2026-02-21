@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# exit on error
+# Arrêter le script en cas d'erreur
 set -o errexit
 
+# Installer les dépendances
 pip install -r requirements.txt
 
-python manage.py collectstatic --no-input
+# Collecter les fichiers statiques (CSS/JS)
+python manage.py collectstatic --noinput
+
+# Appliquer les migrations à la base de données
 python manage.py migrate

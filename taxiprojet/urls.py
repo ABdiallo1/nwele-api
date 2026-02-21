@@ -1,22 +1,16 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from chauffeurs import views
 
 urlpatterns = [
-    # Interface d'administration
     path('admin/', admin.site.urls),
-    
-    # API pour l'application Flutter
-    path('api/connexion-chauffeur/', views.connexion_chauffeur),
-    path('api/initier-paiement/<int:chauffeur_id>/', views.initier_paiement),
-    path('api/update-chauffeur/<int:chauffeur_id>/', views.update_chauffeur),
-    path('api/profil-chauffeur/<int:chauffeur_id>/', views.profil_chauffeur),
-    path('api/taxis-actifs/', views.liste_taxis_actifs),
+    # On inclut les URLs de l'application chauffeurs
+    path('', include('chauffeurs.urls')), 
 ]
 
-# CONFIGURATION POUR LES IMAGES (MEDIA)
-# Cette partie permet de servir les fichiers téléchargés pendant le développement
+# Indispensable pour voir les photos du permis et de la voiture
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Sur Render, on ajoute aussi cette ligne pour servir les images en production
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

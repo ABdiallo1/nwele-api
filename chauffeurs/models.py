@@ -1,19 +1,20 @@
 from django.db import models
 
 class Chauffeur(models.Model):
-    nom_complet = models.CharField(max_length=255)
+    nom_complet = models.CharField(max_length=150)
     telephone = models.CharField(max_length=20, unique=True)
-    plaque_immatriculation = models.CharField(max_length=50)
+    plaque_immatriculation = models.CharField(max_length=20, unique=True)
+    modele_voiture = models.CharField(max_length=100, default="Taxi")
     
-    # upload_to définit le sous-dossier dans 'media/'
-    photo_permis = models.FileField(upload_to='permis/', null=True, blank=True)
-    photo_vehicule = models.FileField(upload_to='vehicules/', null=True, blank=True)
-    
-    est_actif = models.BooleanField(default=False)
-    est_en_ligne = models.BooleanField(default=False)
-    latitude = models.FloatField(null=True, blank=True, default=0.0)
-    longitude = models.FloatField(null=True, blank=True, default=0.0)
-    date_inscription = models.DateTimeField(auto_now_add=True)
+    # On utilise à nouveau ImageField car Render supporte Pillow !
+    photo_voiture = models.ImageField(upload_to='chauffeurs/voitures/', null=True, blank=True)
+    photo_permis = models.ImageField(upload_to='chauffeurs/permis/', null=True, blank=True)
+
+    est_actif = models.BooleanField(default=False) 
+    est_en_ligne = models.BooleanField(default=False) 
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    derniere_maj = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.nom_complet
+        return f"{self.nom_complet} - {self.plaque_immatriculation}"

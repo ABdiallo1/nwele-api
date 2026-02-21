@@ -1,20 +1,16 @@
 from django.contrib import admin
-from django.utils.html import format_html
 from .models import Chauffeur
 
 @admin.register(Chauffeur)
 class ChauffeurAdmin(admin.ModelAdmin):
-    list_display = ('apercu_permis', 'apercu_vehicule', 'nom_complet', 'telephone', 'est_actif')
+    # Liste des colonnes affichées dans l'admin
+    list_display = ('nom_complet', 'telephone', 'plaque_immatriculation', 'est_actif', 'est_en_ligne', 'derniere_maj')
     
-    def apercu_permis(self, obj):
-        if obj.photo_permis:
-            return format_html('<img src="{}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" />', obj.photo_permis.url)
-        return "Pas d'image"
-
-    def apercu_vehicule(self, obj):
-        if obj.photo_vehicule:
-            return format_html('<img src="{}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" />', obj.photo_vehicule.url)
-        return "Pas d'image"
-
-    apercu_permis.short_description = "Permis"
-    apercu_vehicule.short_description = "Véhicule"
+    # Filtres sur le côté droit
+    list_filter = ('est_actif', 'est_en_ligne')
+    
+    # Barre de recherche
+    search_fields = ('nom_complet', 'telephone', 'plaque_immatriculation')
+    
+    # Permet de modifier le statut "actif" directement depuis la liste
+    list_editable = ('est_actif',)
