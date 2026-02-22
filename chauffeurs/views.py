@@ -28,13 +28,13 @@ def initier_paiement_maishapay(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     url_maisha = "https://marchand.maishapay.online/api/collect/v2/store/card"
     
-    # Récupération des clés configurées sur ton Render
-    public_key = os.getenv('MAISHAPAY_API_KEY')
-    secret_key = os.getenv('MAISHAPAY_SECRET_KEY')
+    # Récupération depuis Render OU clés par défaut si Render est vide
+    public_key = os.getenv('MAISHAPAY_API_KEY', "MP-SBPK-/yFFW4a11Pl$cHfUimIS2YaOrde$t99o.8s8uUwNyycDDIg1v3F0SdA7$OGSJWVS$7qaJPQmhKhabuZqZQRmp2s6$yhv6uC/Cc5zGEQJO$3SB0rRfKI0TUp0")
+    secret_key = os.getenv('MAISHAPAY_SECRET_KEY', "MP-SBPK-B$woJen2LeuSboIeNk8XiAEy0L$1/AX73DyYdn88JjUdT2VZ1WuN4EA$25gU2wr23Au.U0kKm$7e5vsTAEqGf15.8y0fmx.JiwwGdX3oWVmyedw2vjno$O$a")
 
     payload = {
         "transactionReference": f"NW-{chauffeur.id}-{uuid.uuid4().hex[:6]}", 
-        "gatewayMode": 0,  # Mode SANDBOX selon ton dashboard
+        "gatewayMode": 0,  # 0 pour SANDBOX
         "publicApiKey": public_key,
         "secretApiKey": secret_key,
         "order": {
