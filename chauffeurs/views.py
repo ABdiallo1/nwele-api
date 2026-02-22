@@ -1,6 +1,7 @@
 import os
 import requests
 import uuid
+import json
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -28,20 +29,20 @@ def initier_paiement_maishapay(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     url_maisha = "https://marchand.maishapay.online/api/collect/v2/store/card"
     
-    # On essaie Render, sinon on prend les clés Sandbox que tu as fournies
-    public_key = os.getenv('MAISHAPAY_API_KEY', "MP-SBPK-/yFFW4a11Pl$cHfUimIS2YaOrde$t99o.8s8uUwNyycDDIg1v3F0SdA7$OGSJWVS$7qaJPQmhKhabuZqZQRmp2s6$yhv6uC/Cc5zGEQJO$3SB0rRfKI0TUp0")
-    secret_key = os.getenv('MAISHAPAY_SECRET_KEY', "MP-SBPK-B$woJen2LeuSboIeNk8XiAEy0L$1/AX73DyYdn88JjUdT2VZ1WuN4EA$25gU2wr23Au.U0kKm$7e5vsTAEqGf15.8y0fmx.JiwwGdX3oWVmyedw2vjno$O$a")
+    # Clés directes pour éviter tout problème Render
+    public_key = "MP-SBPK-/yFFW4a11Pl$cHfUimIS2YaOrde$t99o.8s8uUwNyycDDIg1v3F0SdA7$OGSJWVS$7qaJPQmhKhabuZqZQRmp2s6$yhv6uC/Cc5zGEQJO$3SB0rRfKI0TUp0"
+    secret_key = "MP-SBPK-B$woJen2LeuSboIeNk8XiAEy0L$1/AX73DyYdn88JjUdT2VZ1WuN4EA$25gU2wr23Au.U0kKm$7e5vsTAEqGf15.8y0fmx.JiwwGdX3oWVmyedw2vjno$O$a"
 
     payload = {
-        "transactionReference": f"NW-{chauffeur.id}-{uuid.uuid4().hex[:6]}", 
-        "gatewayMode": 0,  # 0 = SANDBOX (Test), 1 = LIVE
+        "transactionReference": f"NW{chauffeur.id}{uuid.uuid4().hex[:4]}", 
+        "gatewayMode": 0,
         "publicApiKey": public_key,
         "secretApiKey": secret_key,
         "order": {
-            "amount": "100",
+            "amount": 100,
             "currency": "XOF",
-            "customerFullName": chauffeur.nom_complet,
-            "customerPhoneNumber": chauffeur.telephone,
+            "customerFullName": str(chauffeur.nom_complet),
+            "customerPhoneNumber": str(chauffeur.telephone),
             "customerEmailAdress": "contact@nwele.com"
         },
         "paymentChannel": {
@@ -51,38 +52,39 @@ def initier_paiement_maishapay(request, chauffeur_id):
         }
     }
 
+    headers = {"Content-Type": "application/json"}
+
     try:
-        response = requests.post(url_maisha, json=payload, timeout=15)
+        # Envoi avec json.dumps pour être sûr du format
+        response = requests.post(url_maisha, data=json.dumps(payload), headers=headers, timeout=20)
         data = response.json()
         
-        if data.get('status_code') == 202:
+        if data.get('status_code') == 202 or 'paymentPage' in data:
             return Response({'url': data['paymentPage']})
         
-        # En cas d'erreur de MaishaPay, on renvoie le message précis
-        desc = data.get('transactionDescription', 'Erreur inconnue')
-        return Response({'error': f"MaishaPay dit: {desc}"}, status=400)
+        return Response({'error': data.get('transactionDescription', 'Erreur technique MaishaPay')}, status=400)
         
     except Exception as e:
-        return Response({'error': f"Erreur serveur : {str(e)}"}, status=500)
+        return Response({'error': f"Erreur de connexion : {str(e)}"}, status=500)
 
-# 3. WEBHOOK (ACTIVATION)
+# 3. WEBHOOK
 @csrf_exempt
 def maishapay_webhook(request):
     status_payment = request.GET.get('status')
-    transaction_ref = request.GET.get('transactionRefId')
-    
+    transaction_ref = request.get('transactionRefId')
     if status_payment == "200" and transaction_ref:
         try:
-            chauffeur_id = transaction_ref.split('-')[1]
-            chauffeur = Chauffeur.objects.get(id=chauffeur_id)
+            # Extraction ID (NW + ID + UUID)
+            chauffeur_id = transaction_ref[2:4].replace('-', '') 
+            chauffeur = Chauffeur.objects.get(id=int(chauffeur_id))
             chauffeur.est_actif = True
             chauffeur.save()
             return HttpResponse("OK")
         except:
-            return HttpResponse("Chauffeur non trouvé", status=404)
-    return HttpResponse("Echec paiement", status=400)
+            return HttpResponse("Erreur", status=500)
+    return HttpResponse("Invalide", status=400)
 
-# 4. GPS & PROFIL
+# 4. FONCTIONS STANDARDS
 @api_view(['POST'])
 def update_chauffeur(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
@@ -99,7 +101,7 @@ def liste_taxis_actifs(request):
     return Response(serializer.data)
 
 def paiement_reussi(request):
-    return HttpResponse("<h1 style='text-align:center;'>✅ Activation réussie !</h1>")
+    return HttpResponse("<h1>Activation réussie !</h1>")
 
 @api_view(['GET'])
 def profil_chauffeur(request, chauffeur_id):
