@@ -22,19 +22,19 @@ def connexion_chauffeur(request):
     except Chauffeur.DoesNotExist:
         return Response({"error": "Chauffeur non trouvé"}, status=404)
 
-# 2. PAIEMENT MAISHAPAY
+# 2. INITIALISATION MAISHAPAY
 @api_view(['POST'])
 def initier_paiement_maishapay(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     url_maisha = "https://marchand.maishapay.online/api/collect/v2/store/card"
     
-    # Tes clés Sandbox fonctionnelles
-    public_key = "MP-SBPK-/yFFW4a11Pl$cHfUimIS2YaOrde$t99o.8s8uUwNyycDDIg1v3F0SdA7$OGSJWVS$7qaJPQmhKhabuZqZQRmp2s6$yhv6uC/Cc5zGEQJO$3SB0rRfKI0TUp0"
-    secret_key = "MP-SBPK-B$woJen2LeuSboIeNk8XiAEy0L$1/AX73DyYdn88JjUdT2VZ1WuN4EA$25gU2wr23Au.U0kKm$7e5vsTAEqGf15.8y0fmx.JiwwGdX3oWVmyedw2vjno$O$a"
+    # On essaie Render, sinon on prend les clés Sandbox que tu as fournies
+    public_key = os.getenv('MAISHAPAY_API_KEY', "MP-SBPK-/yFFW4a11Pl$cHfUimIS2YaOrde$t99o.8s8uUwNyycDDIg1v3F0SdA7$OGSJWVS$7qaJPQmhKhabuZqZQRmp2s6$yhv6uC/Cc5zGEQJO$3SB0rRfKI0TUp0")
+    secret_key = os.getenv('MAISHAPAY_SECRET_KEY', "MP-SBPK-B$woJen2LeuSboIeNk8XiAEy0L$1/AX73DyYdn88JjUdT2VZ1WuN4EA$25gU2wr23Au.U0kKm$7e5vsTAEqGf15.8y0fmx.JiwwGdX3oWVmyedw2vjno$O$a")
 
     payload = {
         "transactionReference": f"NW-{chauffeur.id}-{uuid.uuid4().hex[:6]}", 
-        "gatewayMode": 0,  # 0 pour SANDBOX
+        "gatewayMode": 0,  # 0 = SANDBOX (Test), 1 = LIVE
         "publicApiKey": public_key,
         "secretApiKey": secret_key,
         "order": {
@@ -52,15 +52,20 @@ def initier_paiement_maishapay(request, chauffeur_id):
     }
 
     try:
-        response = requests.post(url_maisha, json=payload)
+        response = requests.post(url_maisha, json=payload, timeout=15)
         data = response.json()
+        
         if data.get('status_code') == 202:
             return Response({'url': data['paymentPage']})
-        return Response({'error': data.get('transactionDescription', 'Erreur MaishaPay')}, status=400)
+        
+        # En cas d'erreur de MaishaPay, on renvoie le message précis
+        desc = data.get('transactionDescription', 'Erreur inconnue')
+        return Response({'error': f"MaishaPay dit: {desc}"}, status=400)
+        
     except Exception as e:
-        return Response({'error': str(e)}, status=500)
+        return Response({'error': f"Erreur serveur : {str(e)}"}, status=500)
 
-# 3. WEBHOOK (ACTIVATION AUTOMATIQUE)
+# 3. WEBHOOK (ACTIVATION)
 @csrf_exempt
 def maishapay_webhook(request):
     status_payment = request.GET.get('status')
@@ -74,10 +79,10 @@ def maishapay_webhook(request):
             chauffeur.save()
             return HttpResponse("OK")
         except:
-            return HttpResponse("Erreur", status=500)
-    return HttpResponse("Invalide", status=400)
+            return HttpResponse("Chauffeur non trouvé", status=404)
+    return HttpResponse("Echec paiement", status=400)
 
-# 4. AUTRES FONCTIONS
+# 4. GPS & PROFIL
 @api_view(['POST'])
 def update_chauffeur(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
@@ -94,7 +99,7 @@ def liste_taxis_actifs(request):
     return Response(serializer.data)
 
 def paiement_reussi(request):
-    return HttpResponse("<h2 style='color:green; text-align:center;'>Paiement validé ! Bienvenue chez N'WÉLÉ.</h2>")
+    return HttpResponse("<h1 style='text-align:center;'>✅ Activation réussie !</h1>")
 
 @api_view(['GET'])
 def profil_chauffeur(request, chauffeur_id):
