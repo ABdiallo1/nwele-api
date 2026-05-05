@@ -12,6 +12,7 @@ from rest_framework import status
 from .models import Chauffeur
 from .serializers import ChauffeurSerializer
 
+# Identifiants Orange Money
 OM_AUTH_HEADER_BASIC = "Basic MmJPd1RVTDlkZnFKd1VXM1VvbXNUUHlsN2doMnJsMTQ6OXliSWhpbjJnendmSEYyc21SeVpCdklIR1hXRlM5ZVV0cjlYZTFyUklKVFA="
 OM_MERCHANT_KEY = "101350" 
 
@@ -69,9 +70,11 @@ def initier_paiement_orange(request, chauffeur_id):
         return Response({"error": "Auth Orange échouée"}, status=401)
 
     order_id = f"NW{chauffeur.id}X{uuid.uuid4().hex[:4]}"
+    
+    # CORRECTION : currency passée de OUV à XOF
     payload = {
         "merchant_key": OM_MERCHANT_KEY,
-        "currency": "OUV",
+        "currency": "XOF", 
         "order_id": order_id,
         "amount": 100,
         "return_url": "https://nwele-api.onrender.com/api/paiement-reussi/",
@@ -98,13 +101,22 @@ def orange_webhook(request):
         data = json.loads(request.body)
         if data.get('status') == 'SUCCESS':
             order_id = data.get('order_id')
-            chauffeur_id = order_id.split('NW')[1].split('X')[0]
-            chauffeur = Chauffeur.objects.get(id=int(chauffeur_id))
+            # Extraction propre de l'ID du chauffeur depuis le order_id (ex: NW1Xabcd)
+            chauffeur_id_str = order_id.split('NW')[1].split('X')[0]
+            chauffeur = Chauffeur.objects.get(id=int(chauffeur_id_str))
+            
             chauffeur.est_actif = True
             chauffeur.save()
-    except:
-        pass
+            print(f"Chauffeur {chauffeur.nom_complet} activé avec succès.")
+    except Exception as e:
+        print(f"Erreur Webhook: {e}")
+    
     return HttpResponse("OK", status=200)
 
 def paiement_reussi(request):
-    return HttpResponse("<h1 style='color:green;text-align:center;'>Paiement réussi !</h1>")
+    return HttpResponse("""
+        <div style='text-align:center; padding:50px; font-family:sans-serif;'>
+            <h1 style='color:green;'>Paiement réussi !</h1>
+            <p>Votre compte a été activé. Vous pouvez retourner sur l'application.</p>
+        </div>
+    """)
