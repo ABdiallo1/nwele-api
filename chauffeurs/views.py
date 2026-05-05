@@ -12,7 +12,34 @@ from rest_framework import status
 from .models import Chauffeur
 from .serializers import ChauffeurSerializer
 
-# 1. CONNEXION
+# --- CONFIGURATION ORANGE MONEY (Tes identifiants validés) ---
+# Header Authorization fourni précédemment
+OM_AUTH_HEADER_BASIC = "Basic MmJPd1RVTDlkZnFKd1VXM1VvbXNUUHlsN2doMnJsMTQ6OXliSWhpbjJnendmSEYyc21SeVpCdklIR1hXRlM5ZVV0cjlYZTFyUklKVFA="
+
+# En mode Sandbox Mali, essaye d'abord cette valeur ou ta Merchant Key si tu la reçois
+OM_MERCHANT_KEY = "101350" 
+
+TOKEN_URL = "https://api.orange.com/oauth/v2/token"
+PAYMENT_URL = "https://api.orange.com/orange-money-webpay/dev/v1/webpayments"
+
+def get_orange_token():
+    """Récupère le Token d'accès (valide 1 heure comme indiqué sur ton image)"""
+    headers = {
+        "Authorization": OM_AUTH_HEADER_BASIC,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    data = {"grant_type": "client_credentials"}
+    
+    try:
+        response = requests.post(TOKEN_URL, headers=headers, data=data, timeout=15)
+        res_data = response.json()
+        return res_data.get("access_token")
+    except Exception as e:
+        print(f"Erreur d'obtention du Token: {e}")
+        return None
+
+# --- 1. GESTION DU CHAUFFEUR ---
+
 @api_view(['POST'])
 def connexion_chauffeur(request):
     telephone = request.data.get('telephone')
@@ -23,68 +50,12 @@ def connexion_chauffeur(request):
     except Chauffeur.DoesNotExist:
         return Response({"error": "Chauffeur non trouvé"}, status=404)
 
-# 2. INITIALISATION MAISHAPAY
-@api_view(['POST'])
-def initier_paiement_maishapay(request, chauffeur_id):
+@api_view(['GET'])
+def profil_chauffeur(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
-    url_maisha = "https://marchand.maishapay.online/api/collect/v2/store/card"
-    
-    # Clés directes pour éviter tout problème Render
-    public_key = "MP-SBPK-/yFFW4a11Pl$cHfUimIS2YaOrde$t99o.8s8uUwNyycDDIg1v3F0SdA7$OGSJWVS$7qaJPQmhKhabuZqZQRmp2s6$yhv6uC/Cc5zGEQJO$3SB0rRfKI0TUp0"
-    secret_key = "MP-SBPK-B$woJen2LeuSboIeNk8XiAEy0L$1/AX73DyYdn88JjUdT2VZ1WuN4EA$25gU2wr23Au.U0kKm$7e5vsTAEqGf15.8y0fmx.JiwwGdX3oWVmyedw2vjno$O$a"
+    serializer = ChauffeurSerializer(chauffeur, context={'request': request})
+    return Response(serializer.data)
 
-    payload = {
-        "transactionReference": f"NW{chauffeur.id}{uuid.uuid4().hex[:4]}", 
-        "gatewayMode": 0,
-        "publicApiKey": public_key,
-        "secretApiKey": secret_key,
-        "order": {
-            "amount": 100,
-            "currency": "XOF",
-            "customerFullName": str(chauffeur.nom_complet),
-            "customerPhoneNumber": str(chauffeur.telephone),
-            "customerEmailAdress": "contact@nwele.com"
-        },
-        "paymentChannel": {
-            "channel": "CARD",
-            "provider": "VISA",
-            "callbackUrl": "https://nwele-api.onrender.com/api/maishapay-webhook/"
-        }
-    }
-
-    headers = {"Content-Type": "application/json"}
-
-    try:
-        # Envoi avec json.dumps pour être sûr du format
-        response = requests.post(url_maisha, data=json.dumps(payload), headers=headers, timeout=20)
-        data = response.json()
-        
-        if data.get('status_code') == 202 or 'paymentPage' in data:
-            return Response({'url': data['paymentPage']})
-        
-        return Response({'error': data.get('transactionDescription', 'Erreur technique MaishaPay')}, status=400)
-        
-    except Exception as e:
-        return Response({'error': f"Erreur de connexion : {str(e)}"}, status=500)
-
-# 3. WEBHOOK
-@csrf_exempt
-def maishapay_webhook(request):
-    status_payment = request.GET.get('status')
-    transaction_ref = request.get('transactionRefId')
-    if status_payment == "200" and transaction_ref:
-        try:
-            # Extraction ID (NW + ID + UUID)
-            chauffeur_id = transaction_ref[2:4].replace('-', '') 
-            chauffeur = Chauffeur.objects.get(id=int(chauffeur_id))
-            chauffeur.est_actif = True
-            chauffeur.save()
-            return HttpResponse("OK")
-        except:
-            return HttpResponse("Erreur", status=500)
-    return HttpResponse("Invalide", status=400)
-
-# 4. FONCTIONS STANDARDS
 @api_view(['POST'])
 def update_chauffeur(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
@@ -100,11 +71,78 @@ def liste_taxis_actifs(request):
     serializer = ChauffeurSerializer(taxis, many=True, context={'request': request})
     return Response(serializer.data)
 
-def paiement_reussi(request):
-    return HttpResponse("<h1>Activation réussie !</h1>")
+# --- 2. LOGIQUE DE PAIEMENT ORANGE MONEY ---
 
-@api_view(['GET'])
-def profil_chauffeur(request, chauffeur_id):
+@api_view(['POST'])
+def initier_paiement_orange(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
-    serializer = ChauffeurSerializer(chauffeur, context={'request': request})
-    return Response(serializer.data)
+    
+    # Récupération du Token
+    token = get_orange_token()
+    if not token:
+        return Response({"error": "Impossible de s'authentifier auprès d'Orange."}, status=401)
+
+    # Référence unique pour la transaction
+    order_id = f"NW{chauffeur.id}X{uuid.uuid4().hex[:4]}"
+
+    payload = {
+        "merchant_key": OM_MERCHANT_KEY,
+        "currency": "OUV", # Devise Sandbox pour les tests
+        "order_id": order_id,
+        "amount": 100,
+        "return_url": "https://nwele-api.onrender.com/api/paiement-reussi/",
+        "cancel_url": "https://nwele-api.onrender.com/api/paiement-annule/",
+        "notif_url": "https://nwele-api.onrender.com/api/orange-webhook/",
+        "lang": "fr",
+        "reference": "Activation Compte Nwele"
+    }
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    try:
+        response = requests.post(PAYMENT_URL, json=payload, headers=headers, timeout=20)
+        data = response.json()
+        
+        if "payment_url" in data:
+            return Response({'url': data['payment_url']})
+        
+        return Response({
+            'error': "Orange Money a refusé l'initialisation",
+            'details': data.get('message', 'Vérifiez la Merchant Key')
+        }, status=400)
+
+    except Exception as e:
+        return Response({'error': f"Erreur de connexion : {str(e)}"}, status=500)
+
+# --- 3. WEBHOOK ET CONFIRMATION ---
+
+@csrf_exempt
+def orange_webhook(request):
+    """Notification de succès envoyée par Orange"""
+    try:
+        data = json.loads(request.body)
+        if data.get('status') == 'SUCCESS':
+            order_id = data.get('order_id')
+            chauffeur_id = order_id.split('NW')[1].split('X')[0]
+            
+            chauffeur = Chauffeur.objects.get(id=int(chauffeur_id))
+            chauffeur.est_actif = True
+            chauffeur.save()
+            return HttpResponse("OK", status=200)
+    except:
+        pass
+    return HttpResponse("Received", status=200)
+
+def paiement_reussi(request):
+    """Affichage final après paiement"""
+    return HttpResponse("""
+        <div style='text-align:center; margin-top:100px; font-family:sans-serif;'>
+            <h1 style='color:#FF7900;'>Orange Money</h1>
+            <h2 style='color:green;'>✅ Paiement effectué avec succès !</h2>
+            <p>Votre compte N'WÉLÉ est maintenant activé.</p>
+        </div>
+    """)

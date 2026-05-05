@@ -6,11 +6,11 @@ class Chauffeur(models.Model):
     plaque_immatriculation = models.CharField(max_length=20, unique=True)
     modele_voiture = models.CharField(max_length=100, default="Taxi")
     
-    # On utilise à nouveau ImageField car Render supporte Pillow !
+    # Stockage des images (nécessite Pillow)
     photo_voiture = models.ImageField(upload_to='chauffeurs/voitures/', null=True, blank=True)
     photo_permis = models.ImageField(upload_to='chauffeurs/permis/', null=True, blank=True)
 
-    est_actif = models.BooleanField(default=False) 
+    est_actif = models.BooleanField(default=False) # Devient True après paiement Orange
     est_en_ligne = models.BooleanField(default=False) 
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)

@@ -2,7 +2,6 @@ from rest_framework import serializers
 from .models import Chauffeur
 
 class ChauffeurSerializer(serializers.ModelSerializer):
-    # On ajoute ces champs pour s'assurer que Flutter reçoive l'URL complète de l'image
     photo_voiture_url = serializers.SerializerMethodField()
     photo_permis_url = serializers.SerializerMethodField()
 
