@@ -66,34 +66,39 @@ def liste_taxis_actifs(request):
 def initier_paiement_orange(request, chauffeur_id):
     chauffeur = get_object_or_404(Chauffeur, id=chauffeur_id)
     token = get_orange_token()
-    if not token:
-        return Response({"error": "Auth Orange échouée"}, status=401)
-
-    order_id = f"NW{chauffeur.id}X{uuid.uuid4().hex[:4]}"
     
-    # CORRECTION : currency passée de OUV à XOF
+    if not token:
+        return Response({"error": "Authentification Orange échouée"}, status=401)
+
+    # Identifiant de commande simplifié pour éviter les erreurs de format
+    order_id = f"NWELE{chauffeur.id}X{uuid.uuid4().hex[:6]}"
+    
     payload = {
         "merchant_key": OM_MERCHANT_KEY,
         "currency": "XOF", 
         "order_id": order_id,
         "amount": 100,
         "return_url": "https://nwele-api.onrender.com/api/paiement-reussi/",
-        "cancel_url": "https://nwele-api.onrender.com/api/paiement-annule/",
+        "cancel_url": "https://nwele-api.onrender.com/api/paiement-reussi/",
         "notif_url": "https://nwele-api.onrender.com/api/orange-webhook/",
         "lang": "fr",
-        "reference": "Activation Nwele"
+        "reference": f"ACT{chauffeur.id}"
     }
 
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {token}", 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
 
     try:
-        response = requests.post(PAYMENT_URL, json=payload, headers=headers, timeout=20)
+        response = requests.post(PAYMENT_URL, json=payload, headers=headers, timeout=30)
         data = response.json()
         if "payment_url" in data:
             return Response({'url': data['payment_url']})
-        return Response({'error': "Refus Orange", 'details': data}, status=400)
+        return Response({'error': "Refus de la plateforme Orange", 'details': data}, status=400)
     except Exception as e:
-        return Response({'error': str(e)}, status=500)
+        return Response({'error': f"Erreur réseau : {str(e)}"}, status=500)
 
 @csrf_exempt
 def orange_webhook(request):
@@ -101,13 +106,13 @@ def orange_webhook(request):
         data = json.loads(request.body)
         if data.get('status') == 'SUCCESS':
             order_id = data.get('order_id')
-            # Extraction propre de l'ID du chauffeur depuis le order_id (ex: NW1Xabcd)
-            chauffeur_id_str = order_id.split('NW')[1].split('X')[0]
+            # Extraction de l'ID : "NWELE" (5 chars) + ID + "X"
+            # Exemple: NWELE1Xabc -> 1
+            chauffeur_id_str = order_id.split('NWELE')[1].split('X')[0]
             chauffeur = Chauffeur.objects.get(id=int(chauffeur_id_str))
             
             chauffeur.est_actif = True
             chauffeur.save()
-            print(f"Chauffeur {chauffeur.nom_complet} activé avec succès.")
     except Exception as e:
         print(f"Erreur Webhook: {e}")
     
@@ -116,7 +121,7 @@ def orange_webhook(request):
 def paiement_reussi(request):
     return HttpResponse("""
         <div style='text-align:center; padding:50px; font-family:sans-serif;'>
-            <h1 style='color:green;'>Paiement réussi !</h1>
-            <p>Votre compte a été activé. Vous pouvez retourner sur l'application.</p>
+            <h1 style='color:green;'>Paiement enregistré !</h1>
+            <p>Votre demande est en cours de traitement. Vous pouvez fermer cette page et retourner sur l'application Nwele.</p>
         </div>
     """)
